@@ -1,6 +1,8 @@
-# Welcome to your Expo app 👋
+# Bike Tracker🚲
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+This app was created to support your daily indoor cycling sessions, it allows you to log each workout by entering key data such as duration, average speed, distance, and calories burned.
+The app also includes weekly goals that automatically reset every Monday. In the History tab, you can review your recent workouts, compare performance over time, and track your personal records.
+
 
 ## Get started
 
