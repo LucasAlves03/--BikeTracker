@@ -4,6 +4,14 @@ This app was created to support your daily indoor cycling sessions, it allows yo
 The app also includes weekly goals that automatically reset every Monday. In the History tab, you can review your recent workouts, compare performance over time, and track your personal records.
 
 
+## Screenshots
+<p align="center">
+  <img src="screenshots/home.png" width="250"/>
+  <img src="screenshots/Add.png" width="250"/>
+   <img src="screenshots/history.png" width="250"/>
+</p>
+
+
 ## Get started
 
 1. Install dependencies
