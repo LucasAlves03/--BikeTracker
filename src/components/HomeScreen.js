@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ProgressChart, LineChart } from 'react-native-chart-kit';
+import { ProgressChart } from 'react-native-chart-kit';
 import { LinearGradient } from 'expo-linear-gradient';
 import LottieView from 'lottie-react-native';
 import { BikeContext } from '../context/BikeContext';
@@ -23,21 +23,45 @@ const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
   const [records, setRecords] = useState([]);
-  const [lastExercise, setLastExercise] = useState(null);
-  const [weeklyStats, setWeeklyStats] = useState({
-    totalDistance: 0,
-    totalTime: 0,
-    totalCalories: 0,
-    averageSpeed: 0,
-    sessionsCount: 0,
+  const [lastExerciseByType, setLastExerciseByType] = useState({
+    indoor: null,
+    walk: null,
   });
-  const [weeklyGoals, setWeeklyGoals] = useState({
-    distance: 80,
-    time: 300,
-    calories: 1125,
+  const [activeTracker, setActiveTracker] = useState('indoor');
+  const [weeklyStatsByType, setWeeklyStatsByType] = useState({
+    indoor: {
+      totalDistance: 0,
+      totalTime: 0,
+      totalCalories: 0,
+      averageSpeed: 0,
+      sessionsCount: 0,
+    },
+    walk: {
+      totalDistance: 0,
+      totalTime: 0,
+      totalCalories: 0,
+      averageSpeed: 0,
+      sessionsCount: 0,
+    },
+  });
+  const [weeklyGoalsByType, setWeeklyGoalsByType] = useState({
+    indoor: {
+      distance: 80,
+      time: 300,
+      calories: 1125,
+    },
+    walk: {
+      distance: 20,
+      time: 240,
+      calories: 800,
+    },
   });
   const [showCelebration, setShowCelebration] = useState(false);
-  const [goalsCompleted, setGoalsCompleted] = useState(false);
+  const [celebrationType, setCelebrationType] = useState('indoor');
+  const [goalsCompletedByType, setGoalsCompletedByType] = useState({
+    indoor: false,
+    walk: false,
+  });
   const { refreshTrigger, triggerNotificationRefresh } = useContext(BikeContext);
 
   useFocusEffect(
@@ -72,27 +96,37 @@ export default function HomeScreen() {
       
       if (!lastResetDate || new Date(lastResetDate) < monday) {
         await AsyncStorage.setItem('lastWeekReset', monday.toISOString());
-        await AsyncStorage.setItem('goalsCompletedThisWeek', 'false');
-        setGoalsCompleted(false);
+        await AsyncStorage.setItem('goalsCompletedThisWeek:indoor', 'false');
+        await AsyncStorage.setItem('goalsCompletedThisWeek:walk', 'false');
+        setGoalsCompletedByType({ indoor: false, walk: false });
       } else {
-        const completed = await AsyncStorage.getItem('goalsCompletedThisWeek');
-        setGoalsCompleted(completed === 'true');
+        const completedIndoor = await AsyncStorage.getItem('goalsCompletedThisWeek:indoor');
+        const completedWalk = await AsyncStorage.getItem('goalsCompletedThisWeek:walk');
+        setGoalsCompletedByType({
+          indoor: completedIndoor === 'true',
+          walk: completedWalk === 'true',
+        });
       }
     } catch (error) {
       console.error('Error checking week reset:', error);
     }
   };
 
+  const normalizeRecord = (record) => ({
+    ...record,
+    activityType: record.activityType || 'indoor',
+  });
+
   const loadData = async () => {
     try {
       const savedRecords = await AsyncStorage.getItem('bikeRecords');
       if (savedRecords !== null) {
-        const parsedRecords = JSON.parse(savedRecords);
+        const parsedRecords = JSON.parse(savedRecords).map(normalizeRecord);
         setRecords(parsedRecords);
         
-        if (parsedRecords.length > 0) {
-          setLastExercise(parsedRecords[0]);
-        }
+        const lastIndoor = parsedRecords.find((record) => record.activityType === 'indoor') || null;
+        const lastWalk = parsedRecords.find((record) => record.activityType === 'walk') || null;
+        setLastExerciseByType({ indoor: lastIndoor, walk: lastWalk });
         
         await calculateWeeklyStats(parsedRecords);
       }
@@ -110,64 +144,67 @@ export default function HomeScreen() {
       return recordDate >= monday && recordDate <= sunday;
     });
 
-    const totalDistance = weeklyRecords.reduce((sum, r) => sum + parseFloat(r.distance || 0), 0);
-    const totalTime = weeklyRecords.reduce((sum, r) => sum + parseFloat(r.time || 0), 0);
-    const totalCalories = weeklyRecords.reduce((sum, r) => sum + parseFloat(r.calories || 0), 0);
-    const totalSpeed = weeklyRecords.reduce((sum, r) => sum + parseFloat(r.speed || 0), 0);
+    const byType = {
+      indoor: weeklyRecords.filter(r => r.activityType === 'indoor'),
+      walk: weeklyRecords.filter(r => r.activityType === 'walk'),
+    };
 
-    setWeeklyStats({
-      totalDistance: totalDistance.toFixed(1),
-      totalTime: Math.round(totalTime),
-      totalCalories: Math.round(totalCalories),
-      averageSpeed: weeklyRecords.length > 0 ? (totalSpeed / weeklyRecords.length).toFixed(1) : 0,
-      sessionsCount: weeklyRecords.length,
-    });
+    const buildStats = (typeRecords) => {
+      const totalDistance = typeRecords.reduce((sum, r) => sum + parseFloat(r.distance || 0), 0);
+      const totalTime = typeRecords.reduce((sum, r) => sum + parseFloat(r.time || 0), 0);
+      const totalCalories = typeRecords.reduce((sum, r) => sum + parseFloat(r.calories || 0), 0);
+      const totalSpeed = typeRecords.reduce((sum, r) => sum + parseFloat(r.speed || 0), 0);
 
+      return {
+        totalDistance: totalDistance.toFixed(1),
+        totalTime: Math.round(totalTime),
+        totalCalories: Math.round(totalCalories),
+        averageSpeed: typeRecords.length > 0 ? (totalSpeed / typeRecords.length).toFixed(1) : 0,
+        sessionsCount: typeRecords.length,
+      };
+    };
+
+    const nextWeeklyStatsByType = {
+      indoor: buildStats(byType.indoor),
+      walk: buildStats(byType.walk),
+    };
+
+    setWeeklyStatsByType(nextWeeklyStatsByType);
+
+    await checkGoalsCompletion('indoor', nextWeeklyStatsByType.indoor);
+    await checkGoalsCompletion('walk', nextWeeklyStatsByType.walk);
+  };
+
+  const checkGoalsCompletion = async (type, stats) => {
+    const goals = weeklyGoalsByType[type];
+    const completed = goalsCompletedByType[type];
     const allGoalsCompleted = 
-      totalDistance >= weeklyGoals.distance &&
-      totalTime >= weeklyGoals.time &&
-      totalCalories >= weeklyGoals.calories;
+      parseFloat(stats.totalDistance) >= goals.distance &&
+      parseFloat(stats.totalTime) >= goals.time &&
+      parseFloat(stats.totalCalories) >= goals.calories;
 
-    if (allGoalsCompleted && !goalsCompleted) {
+    if (allGoalsCompleted && !completed) {
       setShowCelebration(true);
-      setGoalsCompleted(true);
-      await AsyncStorage.setItem('goalsCompletedThisWeek', 'true');
-
+      setCelebrationType(type);
+      setGoalsCompletedByType((prev) => ({ ...prev, [type]: true }));
+      await AsyncStorage.setItem(`goalsCompletedThisWeek:${type}`, 'true');
       await NotificationService.addGoalCompletedNotification();
     }
   };
 
 
 
+
   const getProgressData = () => {
+    const stats = weeklyStatsByType[activeTracker];
+    const goals = weeklyGoalsByType[activeTracker];
     return {
-      labels: ['Distância', 'Tempo', 'Calorias'],
+      labels: ['Dist??ncia', 'Tempo', 'Calorias'],
       data: [
-        Math.min(parseFloat(weeklyStats.totalDistance) / weeklyGoals.distance, 1),
-        Math.min(parseFloat(weeklyStats.totalTime) / weeklyGoals.time, 1),
-        Math.min(parseFloat(weeklyStats.totalCalories) / weeklyGoals.calories, 1),
+        Math.min(parseFloat(stats.totalDistance) / goals.distance, 1),
+        Math.min(parseFloat(stats.totalTime) / goals.time, 1),
+        Math.min(parseFloat(stats.totalCalories) / goals.calories, 1),
       ],
-    };
-  };
-
-  const getLast7DaysData = () => {
-    const monday = getMondayOfWeek();
-    const last7Days = [...Array(7)].map((_, i) => {
-      const date = new Date(monday);
-      date.setDate(monday.getDate() + i);
-      return date.toISOString().split('T')[0];
-    });
-
-    const dailyData = last7Days.map(date => {
-      const dayRecords = records.filter(r => r.date.startsWith(date));
-      return dayRecords.reduce((sum, r) => sum + parseFloat(r.distance || 0), 0);
-    });
-
-    return {
-      labels: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'],
-      datasets: [{
-        data: dailyData.length > 0 && dailyData.some(d => d > 0) ? dailyData : [0, 0, 0, 0, 0, 0, 0],
-      }],
     };
   };
 
@@ -207,7 +244,16 @@ export default function HomeScreen() {
     return time; 
   };
 
- 
+  const getTrackerLabel = (type) => (type === 'walk' ? 'Walk' : 'Indoor');
+
+  const combinedWeeklySessions = weeklyStatsByType.indoor.sessionsCount + weeklyStatsByType.walk.sessionsCount;
+  const totalSessionsAll = records.length;
+  const activeWeeklyStats = weeklyStatsByType[activeTracker];
+  const activeWeeklyGoals = weeklyGoalsByType[activeTracker];
+  const celebrationStats = weeklyStatsByType[celebrationType];
+  const activeLastExercise = lastExerciseByType[activeTracker];
+
+
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -234,23 +280,25 @@ export default function HomeScreen() {
               loop
               style={styles.lottieAnimation}
             />
-            <Text style={styles.resultText}>Your results this week</Text>
+            <Text style={styles.resultText}>
+              Your results this week ({getTrackerLabel(celebrationType)})
+            </Text>
 
             <View style={styles.modalStatsGrid}>
               <View style={styles.modalStatCard}>
-                <Text style={styles.modalStatValue}>{weeklyStats.totalTime}</Text>
+                <Text style={styles.modalStatValue}>{celebrationStats.totalTime}</Text>
                 <Text style={styles.modalStatLabel}>minutes</Text>
               </View>
               <View style={styles.modalStatCard}>
-                <Text style={styles.modalStatValue}>{weeklyStats.averageSpeed}</Text>
+                <Text style={styles.modalStatValue}>{celebrationStats.averageSpeed}</Text>
                 <Text style={styles.modalStatLabel}>avg speed</Text>
               </View>
               <View style={styles.modalStatCard}>
-                <Text style={styles.modalStatValue}>{weeklyStats.totalCalories}</Text>
+                <Text style={styles.modalStatValue}>{celebrationStats.totalCalories}</Text>
                 <Text style={styles.modalStatLabel}>calories</Text>
               </View>
               <View style={styles.modalStatCard}>
-                <Text style={styles.modalStatValue}>{weeklyStats.totalDistance}</Text>
+                <Text style={styles.modalStatValue}>{celebrationStats.totalDistance}</Text>
                 <Text style={styles.modalStatLabel}>Distance</Text>
               </View>
             </View>
@@ -274,7 +322,24 @@ export default function HomeScreen() {
         <NotificationBell/>
       </View>
 
-      {lastExercise && (
+      <View style={styles.trackerToggle}>
+        {['indoor', 'walk'].map((type) => {
+          const isActive = activeTracker === type;
+          return (
+            <TouchableOpacity
+              key={type}
+              style={[styles.trackerTab, isActive && styles.trackerTabActive]}
+              onPress={() => setActiveTracker(type)}
+            >
+              <Text style={[styles.trackerTabText, isActive && styles.trackerTabTextActive]}>
+                {getTrackerLabel(type)}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {activeLastExercise && (
         <View style={styles.glassCard}>
           <LinearGradient
             colors={['rgba(59, 130, 246, 0.3)', 'rgba(30, 64, 175, 0.3)']}
@@ -282,27 +347,38 @@ export default function HomeScreen() {
           >
             <View style={styles.glassContent}>
               <View style={styles.lastExerciseHeader}>
-                <Text style={styles.lastExerciseTitle}>Last Workout</Text>
-                <Text style={styles.lastExerciseDate}>{formatTime(lastExercise.displayTime)}</Text>
+                <View>
+                  <Text style={styles.lastExerciseTitle}>Last Workout</Text>
+                  <Text style={styles.lastExerciseSubtitle}>{getTrackerLabel(activeTracker)}</Text>
+                </View>
+                <View style={styles.lastExerciseTimePill}>
+                  <Text style={styles.lastExerciseDate}>{formatTime(activeLastExercise.displayTime)}</Text>
+                </View>
               </View>
               
               <View style={styles.lastExerciseGrid}>
                 <View style={styles.lastExerciseStat}>
-                  <Text style={styles.lastExerciseValue}>{lastExercise.time}</Text>
+                  <Text style={styles.lastExerciseValue}>{activeLastExercise.time}</Text>
                   <Text style={styles.lastExerciseLabel}>Min</Text>
                 </View>
                 <View style={styles.lastExerciseStat}>
-                  <Text style={styles.lastExerciseValue}>{lastExercise.distance}</Text>
+                  <Text style={styles.lastExerciseValue}>{activeLastExercise.distance}</Text>
                   <Text style={styles.lastExerciseLabel}>Km</Text>
                 </View>
                 <View style={styles.lastExerciseStat}>
-                  <Text style={styles.lastExerciseValue}>{lastExercise.speed}</Text>
+                  <Text style={styles.lastExerciseValue}>{activeLastExercise.speed}</Text>
                   <Text style={styles.lastExerciseLabel}>Km/h</Text>
                 </View>
                 <View style={styles.lastExerciseStat}>
-                  <Text style={styles.lastExerciseValue}>{lastExercise.calories}</Text>
+                  <Text style={styles.lastExerciseValue}>{activeLastExercise.calories}</Text>
                   <Text style={styles.lastExerciseLabel}>Kcal</Text>
                 </View>
+                {activeTracker === 'walk' && activeLastExercise.steps && (
+                  <View style={styles.lastExerciseStat}>
+                    <Text style={styles.lastExerciseValue}>{activeLastExercise.steps}</Text>
+                    <Text style={styles.lastExerciseLabel}>Steps</Text>
+                  </View>
+                )}
               </View>
             </View>
           </LinearGradient>
@@ -310,7 +386,7 @@ export default function HomeScreen() {
       )}
 
       <View style={styles.progressSection}>
-        <Text style={styles.sectionTitle}>Weekly Goals</Text>
+        <Text style={styles.sectionTitle}>Weekly Goals ({getTrackerLabel(activeTracker)})</Text>
         <View style={styles.glassCard}>
           <LinearGradient
             colors={['rgba(30, 41, 59, 0.6)', 'rgba(15, 23, 42, 0.6)']}
@@ -355,11 +431,11 @@ export default function HomeScreen() {
                   <View style={styles.legendItemHeader}>
                     <Text style={styles.legendLabel}>Distance</Text>
                     <Text style={styles.legendPercent}>
-                      {getProgressPercentage(weeklyStats.totalDistance, weeklyGoals.distance)}%
+                      {getProgressPercentage(activeWeeklyStats.totalDistance, activeWeeklyGoals.distance)}%
                     </Text>
                   </View>
                   <Text style={styles.legendValue}>
-                    {weeklyStats.totalDistance}/{weeklyGoals.distance} km
+                    {activeWeeklyStats.totalDistance}/{activeWeeklyGoals.distance} km
                   </Text>
                   <View style={styles.progressBarContainer}>
                     <View style={[styles.progressBarBackground, { backgroundColor: 'rgba(239, 68, 68, 0.2)' }]}>
@@ -367,7 +443,7 @@ export default function HomeScreen() {
                         style={[
                           styles.progressBarFill,
                           {
-                            width: `${Math.min(getProgressPercentage(weeklyStats.totalDistance, weeklyGoals.distance), 100)}%`,
+                            width: `${Math.min(getProgressPercentage(activeWeeklyStats.totalDistance, activeWeeklyGoals.distance), 100)}%`,
                             backgroundColor: '#63dae6',
                           },
                         ]}
@@ -381,11 +457,11 @@ export default function HomeScreen() {
                   <View style={styles.legendItemHeader}>
                     <Text style={styles.legendLabel}>Time</Text>
                     <Text style={styles.legendPercent}>
-                      {getProgressPercentage(weeklyStats.totalTime, weeklyGoals.time)}%
+                      {getProgressPercentage(activeWeeklyStats.totalTime, activeWeeklyGoals.time)}%
                     </Text>
                   </View>
                   <Text style={styles.legendValue}>
-                    {weeklyStats.totalTime}/{weeklyGoals.time} min
+                    {activeWeeklyStats.totalTime}/{activeWeeklyGoals.time} min
                   </Text>
                   <View style={styles.progressBarContainer}>
                     <View style={[styles.progressBarBackground, { backgroundColor: 'rgba(59, 130, 246, 0.2)' }]}>
@@ -393,7 +469,7 @@ export default function HomeScreen() {
                         style={[
                           styles.progressBarFill,
                           {
-                            width: `${Math.min(getProgressPercentage(weeklyStats.totalTime, weeklyGoals.time), 100)}%`,
+                            width: `${Math.min(getProgressPercentage(activeWeeklyStats.totalTime, activeWeeklyGoals.time), 100)}%`,
                             backgroundColor: '#98f84a',
                           },
                         ]}
@@ -406,11 +482,11 @@ export default function HomeScreen() {
                   <View style={styles.legendItemHeader}>
                     <Text style={styles.legendLabel}>Calories</Text>
                     <Text style={styles.legendPercent}>
-                      {getProgressPercentage(weeklyStats.totalCalories, weeklyGoals.calories)}%
+                      {getProgressPercentage(activeWeeklyStats.totalCalories, activeWeeklyGoals.calories)}%
                     </Text>
                   </View>
                   <Text style={styles.legendValue}>
-                    {weeklyStats.totalCalories}/{weeklyGoals.calories}
+                    {activeWeeklyStats.totalCalories}/{activeWeeklyGoals.calories}
                   </Text>
                   <View style={styles.progressBarContainer}>
                     <View style={[styles.progressBarBackground, { backgroundColor: 'rgba(34, 197, 94, 0.2)' }]}>
@@ -418,7 +494,7 @@ export default function HomeScreen() {
                         style={[
                           styles.progressBarFill,
                           {
-                            width: `${Math.min(getProgressPercentage(weeklyStats.totalCalories, weeklyGoals.calories), 100)}%`,
+                            width: `${Math.min(getProgressPercentage(activeWeeklyStats.totalCalories, activeWeeklyGoals.calories), 100)}%`,
                             backgroundColor: '#db374f',
                           },
                         ]}
@@ -434,10 +510,10 @@ export default function HomeScreen() {
 
       <View style={styles.statsGrid}>
         {[
-          { value: weeklyStats.sessionsCount, label: 'Sessions', subtitle: 'This Week' },
-          { value: weeklyStats.averageSpeed, label: 'Avg Speed', subtitle: 'Km/h' },
+          { value: combinedWeeklySessions, label: 'Sessions', subtitle: 'This Week' },
+          { value: activeWeeklyStats.averageSpeed, label: 'Avg Speed', subtitle: 'Km/h' },
           { value: getStreak(), label: 'Streak', subtitle: 'Days' },
-          { value: records.length, label: 'Total', subtitle: 'Sessions' },
+          { value: totalSessionsAll, label: 'Total', subtitle: 'Sessions' },
         ].map((stat, index) => (
           <View key={index} style={styles.glassStatCard}>
             <LinearGradient
@@ -452,41 +528,7 @@ export default function HomeScreen() {
         ))}
       </View>
 
-      <View style={styles.trendSection}>
-        <Text style={styles.sectionTitle}>Last 7 Days</Text>
-        <View style={styles.glassCard}>
-          <LinearGradient
-            colors={['rgba(30, 41, 59, 0.6)', 'rgba(15, 23, 42, 0.6)']}
-            style={styles.glassGradient}
-          >
-            <View style={styles.glassContent}>
-              <LineChart
-                data={getLast7DaysData()}
-                width={width - 80}
-                height={200}
-                chartConfig={{
-                  backgroundColor: 'transparent',
-                  backgroundGradientFrom: 'transparent',
-                  backgroundGradientTo: 'transparent',
-                  decimalPlaces: 1,
-                  color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
-                  labelColor: (opacity = 1) => `rgba(148, 163, 184, ${opacity})`,
-                  propsForDots: {
-                    r: '6',
-                    strokeWidth: '2',
-                    stroke: '#3B82F6',
-                  },
-                }}
-                bezier
-                style={styles.lineChart}
-              />
-              <Text style={styles.chartLabel}>Distance (km)</Text>
-            </View>
-          </LinearGradient>
-        </View>
-      </View>
-
-      {weeklyStats.sessionsCount > 0 && (
+      {combinedWeeklySessions > 0 && (
         <View style={styles.glassCard}>
           <LinearGradient
             colors={['rgba(16, 185, 129, 0.6)', 'rgba(5, 150, 105, 0.6)']}
@@ -494,9 +536,9 @@ export default function HomeScreen() {
           >
             <View style={[styles.glassContent, { alignItems: 'center' }]}>
               <Text style={styles.motivationText}>
-                {weeklyStats.sessionsCount >= 4 
+                {combinedWeeklySessions >= 4 
                   ? "Amazing week! Keep it up!"
-                  : weeklyStats.sessionsCount >= 2
+                  : combinedWeeklySessions >= 2
                   ? "Great progress!"
                   : "Good start! Let's keep the momentum!"}
               </Text>
@@ -522,6 +564,33 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingHorizontal: 24,
     paddingBottom: 24,
+  },
+  trackerToggle: {
+    flexDirection: 'row',
+    marginHorizontal: 24,
+    marginBottom: 16,
+    backgroundColor: '#111827',
+    borderRadius: 14,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  trackerTab: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  trackerTabActive: {
+    backgroundColor: '#3B82F6',
+  },
+  trackerTabText: {
+    color: '#94A3B8',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  trackerTabTextActive: {
+    color: '#FFFFFF',
   },
   headerTitle: {
     fontSize: 32,
@@ -560,17 +629,19 @@ const styles = StyleSheet.create({
     paddingBottom: 13,
   },
   lastExerciseTitle: {
-    fontSize: 25,
+    fontSize: 20,
     fontWeight: '600',
     color: '#FFFFFF',
   },
   lastExerciseDate: {
-    fontSize: 20,
+    fontSize: 15,
     color: '#E0E7FF',
   },
   lastExerciseGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    rowGap: 12,
   },
   lastExerciseStat: {
     alignItems: 'center',
@@ -698,19 +769,6 @@ const styles = StyleSheet.create({
   statSubtitle: {
     fontSize: 12,
     color: '#94A3B8',
-  },
-  trendSection: {
-    marginBottom: 24,
-  },
-  lineChart: {
-    marginVertical: 8,
-    borderRadius: 16,
-  },
-  chartLabel: {
-    textAlign: 'center',
-    fontSize: 14,
-    color: '#94A3B8',
-    marginTop: 8,
   },
   motivationText: {
     fontSize: 16,

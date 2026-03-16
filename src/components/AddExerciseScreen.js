@@ -23,15 +23,15 @@ Notifications.setNotificationHandler({
 });
 
 export default function AddExerciseScreen({ navigation }) {
+  const [activityType, setActivityType] = useState('indoor');
   const [time, setTime] = useState('');
   const [speed, setSpeed] = useState('');
   const [calories, setCalories] = useState('');
   const [distance, setDistance] = useState('');
-  const [averageStats, setAverageStats] = useState(null);
+  const [steps, setSteps] = useState('');
   const { triggerRefresh, triggerNotificationRefresh } = useContext(BikeContext);
 
   useEffect(() => {
-    loadAverageStats();
     registerForPushNotifications();
   }, []);
 
@@ -54,39 +54,6 @@ export default function AddExerciseScreen({ navigation }) {
     }
   };
 
-  const loadAverageStats = async () => {
-    try {
-      const savedRecords = await AsyncStorage.getItem('bikeRecords');
-      if (savedRecords !== null) {
-        const records = JSON.parse(savedRecords);
-        if (records.length > 0) {
-          const avgTime = records.reduce((sum, r) => sum + parseFloat(r.time || 0), 0) / records.length;
-          const avgSpeed = records.reduce((sum, r) => sum + parseFloat(r.speed || 0), 0) / records.length;
-          const avgCalories = records.reduce((sum, r) => sum + parseFloat(r.calories || 0), 0) / records.length;
-          const avgDistance = records.reduce((sum, r) => sum + parseFloat(r.distance || 0), 0) / records.length;
-          
-          setAverageStats({
-            time: Math.round(avgTime),
-            speed: avgSpeed.toFixed(1),
-            calories: Math.round(avgCalories),
-            distance: avgDistance.toFixed(1),
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error loading average stats:', error);
-    }
-  };
-
-  const quickFill = () => {
-    if (averageStats) {
-      setTime(averageStats.time.toString());
-      setSpeed(averageStats.speed.toString());
-      setCalories(averageStats.calories.toString());
-      setDistance(averageStats.distance.toString());
-    }
-  };
-
   const sendCongratulationsNotification = async (sessionData) => {
     try {
       await Notifications.scheduleNotificationAsync({
@@ -103,7 +70,7 @@ export default function AddExerciseScreen({ navigation }) {
   };
 
   const saveRecord = async () => {
-    if (!time || !speed || !calories || !distance) {
+    if (!time || !speed || !calories || !distance || (activityType === 'walk' && !steps)) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
@@ -111,6 +78,7 @@ export default function AddExerciseScreen({ navigation }) {
     const now = new Date();
     const newRecord = {
       id: Date.now().toString(),
+      activityType,
       date: now.toISOString(),
       displayDate: now.toLocaleDateString('en-US', {
         weekday: 'short',
@@ -126,6 +94,7 @@ export default function AddExerciseScreen({ navigation }) {
       speed,
       calories,
       distance,
+      steps: activityType === 'walk' ? steps : undefined,
     };
 
     try {
@@ -145,6 +114,7 @@ export default function AddExerciseScreen({ navigation }) {
       setSpeed('');
       setCalories('');
       setDistance('');
+      setSteps('');
 
       triggerRefresh();
       
@@ -172,14 +142,27 @@ export default function AddExerciseScreen({ navigation }) {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Add Exercise</Text>
-          <Text style={styles.headerSubtitle}>Log your bike session</Text>
+          <Text style={styles.headerSubtitle}>
+            {activityType === 'walk' ? 'Log your walk' : 'Log your indoor ride'}
+          </Text>
         </View>
 
-        {averageStats && (
-          <TouchableOpacity style={styles.quickFillButton} onPress={quickFill}>
-            <Text style={styles.quickFillText}>Quick Fill (Average)</Text>
-          </TouchableOpacity>
-        )}
+        <View style={styles.trackerToggle}>
+          {['indoor', 'walk'].map((type) => {
+            const isActive = activityType === type;
+            return (
+              <TouchableOpacity
+                key={type}
+                style={[styles.trackerTab, isActive && styles.trackerTabActive]}
+                onPress={() => setActivityType(type)}
+              >
+                <Text style={[styles.trackerTabText, isActive && styles.trackerTabTextActive]}>
+                  {type === 'walk' ? 'Walk' : 'Indoor'}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
         <View style={styles.inputSection}>
           <View style={styles.inputGroup}>
@@ -230,34 +213,24 @@ export default function AddExerciseScreen({ navigation }) {
             />
           </View>
 
+          {activityType === 'walk' && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Steps</Text>
+              <TextInput
+                style={styles.input}
+                value={steps}
+                onChangeText={setSteps}
+                keyboardType="numeric"
+                placeholder="Enter steps"
+                placeholderTextColor="#9CA3AF"
+              />
+            </View>
+          )}
+
           <TouchableOpacity style={styles.saveButton} onPress={saveRecord}>
             <Text style={styles.saveButtonText}>Save Exercise</Text>
           </TouchableOpacity>
         </View>
-
-        {averageStats && (
-          <View style={styles.statsCard}>
-            <Text style={styles.statsTitle}>Your Averages</Text>
-            <View style={styles.statsGrid}>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{averageStats.time}</Text>
-                <Text style={styles.statLabel}>min</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{averageStats.speed}</Text>
-                <Text style={styles.statLabel}>km/h</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{averageStats.calories}</Text>
-                <Text style={styles.statLabel}>kcal</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{averageStats.distance}</Text>
-                <Text style={styles.statLabel}>km</Text>
-              </View>
-            </View>
-          </View>
-        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -278,6 +251,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 24,
   },
+  trackerToggle: {
+    flexDirection: 'row',
+    marginHorizontal: 24,
+    marginBottom: 16,
+    backgroundColor: '#111827',
+    borderRadius: 14,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  trackerTab: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  trackerTabActive: {
+    backgroundColor: '#3B82F6',
+  },
+  trackerTabText: {
+    color: '#94A3B8',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  trackerTabTextActive: {
+    color: '#FFFFFF',
+  },
   headerTitle: {
     fontSize: 32,
     fontWeight: 'bold',
@@ -287,19 +287,6 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 16,
     color: '#94A3B8',
-  },
-  quickFillButton: {
-    backgroundColor: '#10B981',
-    marginHorizontal: 24,
-    padding: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  quickFillText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
   inputSection: {
     paddingHorizontal: 24,
@@ -338,38 +325,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
-  },
-  statsCard: {
-    backgroundColor: '#1E293B',
-    marginHorizontal: 24,
-    marginTop: 24,
-    padding: 20,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  statsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#3B82F6',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#94A3B8',
   },
 });

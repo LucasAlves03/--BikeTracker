@@ -289,6 +289,15 @@ export default function HistoryScreen() {
                           </View>
                         </View>
 
+                        {record.activityType === 'walk' && record.steps && (
+                          <View style={styles.statsRow}>
+                            <View style={styles.statBox}>
+                              <Text style={styles.statBoxLabel}>Steps</Text>
+                              <Text style={styles.statBoxValue}>{record.steps}</Text>
+                            </View>
+                          </View>
+                        )}
+
                         <TouchableOpacity
                           style={styles.deleteButton}
                           onPress={() => deleteRecord(record.id)}
