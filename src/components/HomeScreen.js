@@ -24,6 +24,8 @@ const { width } = Dimensions.get('window');
 export default function HomeScreen() {
   const [records, setRecords] = useState([]);
   const [activeTracker, setActiveTracker] = useState('indoor');
+  const [greeting, setGreeting] = useState('Dashboard');
+  const [headerHeight, setHeaderHeight] = useState(0);
   const [weeklyStatsByType, setWeeklyStatsByType] = useState({
     indoor: {
       totalDistance: 0,
@@ -66,6 +68,23 @@ export default function HomeScreen() {
       checkWeekReset();
     }, [refreshTrigger])
   );
+
+  const getGreetingForHour = (hour) => {
+    if (hour >= 5 && hour < 12) return 'Good Morning';
+    if (hour >= 12 && hour < 18) return 'Good Afternoon';
+    return 'Good Evening';
+  };
+
+  useEffect(() => {
+    const updateGreeting = () => {
+      const now = new Date();
+      setGreeting(getGreetingForHour(now.getHours()));
+    };
+
+    updateGreeting();
+    const intervalId = setInterval(updateGreeting, 60 * 1000);
+    return () => clearInterval(intervalId);
+  }, []);
 
   const getMondayOfWeek = () => {
     const today = new Date();
@@ -242,17 +261,23 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View
+        style={styles.header}
+        onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}
+      >
         <View>
-          <Text style={styles.headerTitle}>Dashboard</Text>
-        <Text style={styles.headerSubtitle}>{formatDate(new Date())}</Text>
+          <Text style={styles.headerTitle}>{greeting}</Text>
+          <Text style={styles.headerSubtitle}>{formatDate(new Date())}</Text>
         </View>
         <NotificationBell/>
       </View>
 
     <ScrollView
       style={styles.scrollView}
-      contentContainerStyle={styles.scrollContent}
+      contentContainerStyle={[
+        styles.scrollContent,
+        { paddingTop: headerHeight + 24 },
+      ]}
       showsVerticalScrollIndicator={false}
     >
       <Modal
@@ -460,37 +485,14 @@ export default function HomeScreen() {
           { value: totalSessionsAll, label: 'Total', subtitle: 'Sessions' },
         ].map((stat, index) => (
           <View key={index} style={styles.glassStatCard}>
-            <LinearGradient
-              colors={['rgba(30, 41, 59, 0.5)', 'rgba(15, 23, 42, 0.5)']}
-              style={styles.statGradient}
-            >
+            <View style={styles.statGradient}>
               <Text style={styles.statValue}>{stat.value}</Text>
               <Text style={styles.statLabel}>{stat.label}</Text>
               <Text style={styles.statSubtitle}>{stat.subtitle}</Text>
-            </LinearGradient>
+            </View>
           </View>
         ))}
       </View>
-
-      {combinedWeeklySessions > 0 && (
-        <View style={styles.glassCard}>
-          <LinearGradient
-            colors={['rgba(16, 185, 129, 0.6)', 'rgba(5, 150, 105, 0.6)']}
-            style={styles.glassGradient}
-          >
-            <View style={[styles.glassContent, { alignItems: 'center' }]}>
-              <Text style={styles.motivationText}>
-                {combinedWeeklySessions >= 4 
-                  ? "Amazing week! Keep it up!"
-                  : combinedWeeklySessions >= 2
-                  ? "Great progress!"
-                  : "Good start! Let's keep the momentum!"}
-              </Text>
-            </View>
-          </LinearGradient>
-        </View>
-      )}
-
       <View style={{ height: 40 }} />
     </ScrollView>
     </View>
@@ -548,7 +550,7 @@ const styles = StyleSheet.create({
     color: 'black',
   },
   headerTitle: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#FFFFFF',
     marginBottom: 4,
@@ -658,14 +660,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     marginBottom: 24,
     justifyContent: 'space-between',
+    
   },
   glassStatCard: {
+    backgroundColor: '#000',
     width: (width - 64) / 2,
     marginBottom: 16,
     borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   statGradient: {
     padding: 16,
@@ -673,7 +674,7 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#3B82F6',
+    color: '#ffff',
     marginBottom: 4,
   },
   statLabel: {

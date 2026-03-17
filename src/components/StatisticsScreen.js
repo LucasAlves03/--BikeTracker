@@ -29,6 +29,7 @@ export default function StatisticsScreen() {
   const [records, setRecords] = useState([]);
   const [filterType, setFilterType] = useState('all');
   const [compareMetric, setCompareMetric] = useState('distance');
+  const [headerHeight, setHeaderHeight] = useState(0);
   const { refreshTrigger } = useContext(BikeContext);
 
   useFocusEffect(
@@ -166,13 +167,19 @@ export default function StatisticsScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View
+        style={styles.header}
+        onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}
+      >
         <Text style={styles.headerTitle}>Statistics</Text>
         <Text style={styles.headerSubtitle}>Insights from your sessions</Text>
       </View>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: headerHeight + 24 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
 

@@ -18,6 +18,7 @@ export default function HistoryScreen() {
   const [records, setRecords] = useState([]);
   const [filter, setFilter] = useState('all'); 
   const [expandedCard, setExpandedCard] = useState(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
   const { refreshTrigger } = useContext(BikeContext);
 
   useFocusEffect(
@@ -84,13 +85,19 @@ export default function HistoryScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View
+        style={styles.header}
+        onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}
+      >
         <Text style={styles.headerTitle}>History</Text>
         <Text style={styles.headerSubtitle}>All your sessions</Text>
       </View>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: headerHeight + 24 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
 

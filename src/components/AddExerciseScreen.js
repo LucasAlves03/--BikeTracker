@@ -29,6 +29,7 @@ export default function AddExerciseScreen({ navigation }) {
   const [calories, setCalories] = useState('');
   const [distance, setDistance] = useState('');
   const [steps, setSteps] = useState('');
+  const [headerHeight, setHeaderHeight] = useState(0);
   const { triggerRefresh, triggerNotificationRefresh } = useContext(BikeContext);
 
   useEffect(() => {
@@ -138,7 +139,10 @@ export default function AddExerciseScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <View style={styles.header}>
+      <View
+        style={styles.header}
+        onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}
+      >
         <Text style={styles.headerTitle}>Add Exercise</Text>
         <Text style={styles.headerSubtitle}>
           {activityType === 'walk' ? 'Log your walk' : 'Log your indoor session'}
@@ -147,7 +151,10 @@ export default function AddExerciseScreen({ navigation }) {
       
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: headerHeight + 24 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
 
