@@ -3,6 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, StyleSheet } from 'react-native';
 import HomeScreen from './HomeScreen';
 import AddExerciseScreen from './AddExerciseScreen';
+import StatisticsScreen from './StatisticsScreen';
 import HistoryScreen from './HistoryScreen';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
@@ -18,6 +19,10 @@ const AddIcon = ({ focused }) => (
 );
 
 const HistoryIcon = ({ focused }) => (
+    <Ionicons name='time' size={64} style={styles.icon} color={focused ? "#3B82F6" : "#fff"} />
+);
+
+const StatisticsIcon = ({ focused }) => (
     <Ionicons name='stats-chart' size={64} style={styles.icon} color={focused ? "#3B82F6" : "#fff"} />
 );
 
@@ -49,11 +54,19 @@ export default function TabNavigator() {
         }}
       />
       <Tab.Screen
+        name="Statistics"
+        component={StatisticsScreen}
+        options={{
+          tabBarIcon: ({ focused, color, size }) => <StatisticsIcon focused={focused} />,
+    tabBarLabel: 'Statistics',
+        }}
+      />
+      <Tab.Screen
         name="History"
         component={HistoryScreen}
         options={{
           tabBarIcon: ({ focused, color, size }) => <HistoryIcon focused={focused} />,
-    tabBarLabel: 'Statistics',
+    tabBarLabel: 'History',
         }}
       />
    

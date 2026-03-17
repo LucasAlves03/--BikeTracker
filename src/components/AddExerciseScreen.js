@@ -112,8 +112,8 @@ export default function AddExerciseScreen({ navigation }) {
 
       setTime('');
       setSpeed('');
-      setCalories('');
       setDistance('');
+      setCalories('');
       setSteps('');
 
       triggerRefresh();
@@ -138,14 +138,18 @@ export default function AddExerciseScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Add Exercise</Text>
+        <Text style={styles.headerSubtitle}>
+          {activityType === 'walk' ? 'Log your walk' : 'Log your indoor session'}
+        </Text>
+      </View>
       
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Add Exercise</Text>
-          <Text style={styles.headerSubtitle}>
-            {activityType === 'walk' ? 'Log your walk' : 'Log your indoor ride'}
-          </Text>
-        </View>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
 
         <View style={styles.trackerToggle}>
           {['indoor', 'walk'].map((type) => {
@@ -166,7 +170,7 @@ export default function AddExerciseScreen({ navigation }) {
 
         <View style={styles.inputSection}>
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Time (minutes)</Text>
+            <Text style={styles.label}>Time (mienutes)</Text>
             <TextInput
               style={styles.input}
               value={time}
@@ -188,6 +192,17 @@ export default function AddExerciseScreen({ navigation }) {
               placeholderTextColor="#9CA3AF"
             />
           </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Distance (km)</Text>
+            <TextInput
+              style={styles.input}
+              value={distance}
+              onChangeText={setDistance}
+              keyboardType="numeric"
+              placeholder="Enter distance"
+              placeholderTextColor="#9CA3AF"
+            />
+          </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Calories</Text>
@@ -201,17 +216,7 @@ export default function AddExerciseScreen({ navigation }) {
             />
           </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Distance (km)</Text>
-            <TextInput
-              style={styles.input}
-              value={distance}
-              onChangeText={setDistance}
-              keyboardType="numeric"
-              placeholder="Enter distance"
-              placeholderTextColor="#9CA3AF"
-            />
-          </View>
+          
 
           {activityType === 'walk' && (
             <View style={styles.inputGroup}>
@@ -246,20 +251,28 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollContent: {
+    paddingTop: 140,
+  },
   header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    backgroundColor: '#0F172A',
     paddingTop: 60,
     paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingBottom: 20,
   },
   trackerToggle: {
     flexDirection: 'row',
     marginHorizontal: 24,
     marginBottom: 16,
-    backgroundColor: '#111827',
-    borderRadius: 14,
-    padding: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'black',
+    borderRadius: 15,
+    padding: 8,
+    
   },
   trackerTab: {
     flex: 1,
@@ -268,15 +281,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   trackerTabActive: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#fff',
   },
   trackerTabText: {
     color: '#94A3B8',
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
   },
   trackerTabTextActive: {
-    color: '#FFFFFF',
+    color: 'black',
   },
   headerTitle: {
     fontSize: 32,
@@ -315,11 +328,7 @@ const styles = StyleSheet.create({
     padding: 18,
     alignItems: 'center',
     marginTop: 10,
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    
   },
   saveButtonText: {
     color: '#FFFFFF',

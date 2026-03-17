@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useRef } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import {
   StyleSheet,
   Text,
@@ -23,10 +23,6 @@ const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
   const [records, setRecords] = useState([]);
-  const [lastExerciseByType, setLastExerciseByType] = useState({
-    indoor: null,
-    walk: null,
-  });
   const [activeTracker, setActiveTracker] = useState('indoor');
   const [weeklyStatsByType, setWeeklyStatsByType] = useState({
     indoor: {
@@ -123,10 +119,6 @@ export default function HomeScreen() {
       if (savedRecords !== null) {
         const parsedRecords = JSON.parse(savedRecords).map(normalizeRecord);
         setRecords(parsedRecords);
-        
-        const lastIndoor = parsedRecords.find((record) => record.activityType === 'indoor') || null;
-        const lastWalk = parsedRecords.find((record) => record.activityType === 'walk') || null;
-        setLastExerciseByType({ indoor: lastIndoor, walk: lastWalk });
         
         await calculateWeeklyStats(parsedRecords);
       }
@@ -240,10 +232,6 @@ export default function HomeScreen() {
     return new Date(date).toLocaleDateString('en-US', options);
   };
 
-  const formatTime = (time) => {
-    return time; 
-  };
-
   const getTrackerLabel = (type) => (type === 'walk' ? 'Walk' : 'Indoor');
 
   const combinedWeeklySessions = weeklyStatsByType.indoor.sessionsCount + weeklyStatsByType.walk.sessionsCount;
@@ -251,12 +239,22 @@ export default function HomeScreen() {
   const activeWeeklyStats = weeklyStatsByType[activeTracker];
   const activeWeeklyGoals = weeklyGoalsByType[activeTracker];
   const celebrationStats = weeklyStatsByType[celebrationType];
-  const activeLastExercise = lastExerciseByType[activeTracker];
-
-
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.headerTitle}>Dashboard</Text>
+        <Text style={styles.headerSubtitle}>{formatDate(new Date())}</Text>
+        </View>
+        <NotificationBell/>
+      </View>
+
+    <ScrollView
+      style={styles.scrollView}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
       <Modal
         visible={showCelebration}
         transparent={true}
@@ -314,14 +312,6 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Dashboard</Text>
-        <Text style={styles.headerSubtitle}>{formatDate(new Date())}</Text>
-        </View>
-        <NotificationBell/>
-      </View>
-
       <View style={styles.trackerToggle}>
         {['indoor', 'walk'].map((type) => {
           const isActive = activeTracker === type;
@@ -338,52 +328,6 @@ export default function HomeScreen() {
           );
         })}
       </View>
-
-      {activeLastExercise && (
-        <View style={styles.glassCard}>
-          <LinearGradient
-            colors={['rgba(59, 130, 246, 0.3)', 'rgba(30, 64, 175, 0.3)']}
-            style={styles.glassGradient}
-          >
-            <View style={styles.glassContent}>
-              <View style={styles.lastExerciseHeader}>
-                <View>
-                  <Text style={styles.lastExerciseTitle}>Last Workout</Text>
-                  <Text style={styles.lastExerciseSubtitle}>{getTrackerLabel(activeTracker)}</Text>
-                </View>
-                <View style={styles.lastExerciseTimePill}>
-                  <Text style={styles.lastExerciseDate}>{formatTime(activeLastExercise.displayTime)}</Text>
-                </View>
-              </View>
-              
-              <View style={styles.lastExerciseGrid}>
-                <View style={styles.lastExerciseStat}>
-                  <Text style={styles.lastExerciseValue}>{activeLastExercise.time}</Text>
-                  <Text style={styles.lastExerciseLabel}>Min</Text>
-                </View>
-                <View style={styles.lastExerciseStat}>
-                  <Text style={styles.lastExerciseValue}>{activeLastExercise.distance}</Text>
-                  <Text style={styles.lastExerciseLabel}>Km</Text>
-                </View>
-                <View style={styles.lastExerciseStat}>
-                  <Text style={styles.lastExerciseValue}>{activeLastExercise.speed}</Text>
-                  <Text style={styles.lastExerciseLabel}>Km/h</Text>
-                </View>
-                <View style={styles.lastExerciseStat}>
-                  <Text style={styles.lastExerciseValue}>{activeLastExercise.calories}</Text>
-                  <Text style={styles.lastExerciseLabel}>Kcal</Text>
-                </View>
-                {activeTracker === 'walk' && activeLastExercise.steps && (
-                  <View style={styles.lastExerciseStat}>
-                    <Text style={styles.lastExerciseValue}>{activeLastExercise.steps}</Text>
-                    <Text style={styles.lastExerciseLabel}>Steps</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          </LinearGradient>
-        </View>
-      )}
 
       <View style={styles.progressSection}>
         <Text style={styles.sectionTitle}>Weekly Goals ({getTrackerLabel(activeTracker)})</Text>
@@ -549,6 +493,7 @@ export default function HomeScreen() {
 
       <View style={{ height: 40 }} />
     </ScrollView>
+    </View>
   );
 }
 
@@ -557,23 +502,33 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0F172A',
   },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingTop: 140,
+  },
   header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    backgroundColor: '#0F172A',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingTop: 60,
     paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingBottom: 10,
   },
   trackerToggle: {
     flexDirection: 'row',
     marginHorizontal: 24,
     marginBottom: 16,
-    backgroundColor: '#111827',
-    borderRadius: 14,
-    padding: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'black',
+    borderRadius: 15,
+    padding: 8
   },
   trackerTab: {
     flex: 1,
@@ -582,15 +537,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   trackerTabActive: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#fff',
   },
   trackerTabText: {
-    color: '#94A3B8',
-    fontSize: 14,
-    fontWeight: '600',
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
   },
   trackerTabTextActive: {
-    color: '#FFFFFF',
+    color: 'black',
   },
   headerTitle: {
     fontSize: 32,
@@ -621,45 +576,6 @@ const styles = StyleSheet.create({
   },
   glassContent: {
     padding: 20,
-  },
-  lastExerciseHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingBottom: 13,
-  },
-  lastExerciseTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  lastExerciseDate: {
-    fontSize: 15,
-    color: '#E0E7FF',
-  },
-  lastExerciseGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    rowGap: 12,
-  },
-  lastExerciseStat: {
-    alignItems: 'center',
-  },
-  lastExerciseValue: {
-    fontSize: 25,
-    fontWeight: 'bold',
-    backgroundColor: '#16191C',
-    color: 'white',
-    padding: 8,
-    borderRadius: 10,
-    boxShadow: '3px 4px 6px rgba(0, 0, 0, 0.5)',
-  },
-  lastExerciseLabel: {
-    fontSize: 18,
-    fontWeight: '300',
-    color: '#E0E7FF',
-    marginTop: 4,
   },
   progressSection: {
     marginBottom: 24,

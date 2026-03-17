@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Dimensions,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -15,18 +14,10 @@ import { BikeContext } from '../context/BikeContext';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 
-const { width } = Dimensions.get('window');
-
 export default function HistoryScreen() {
   const [records, setRecords] = useState([]);
   const [filter, setFilter] = useState('all'); 
   const [expandedCard, setExpandedCard] = useState(null);
-  const [bestRecords, setBestRecords] = useState({
-    distance: null,
-    time: null,
-    calories: null,
-    speed: null,
-  });
   const { refreshTrigger } = useContext(BikeContext);
 
   useFocusEffect(
@@ -41,32 +32,10 @@ export default function HistoryScreen() {
       if (savedRecords !== null) {
         const parsedRecords = JSON.parse(savedRecords);
         setRecords(parsedRecords);
-        calculateBestRecords(parsedRecords);
       }
     } catch (error) {
       console.error('Error loading records:', error);
     }
-  };
-
-  const calculateBestRecords = (allRecords) => {
-    if (allRecords.length === 0) return;
-
-    const best = {
-      distance: allRecords.reduce((max, r) => 
-        parseFloat(r.distance) > parseFloat(max.distance) ? r : max
-      ),
-      time: allRecords.reduce((max, r) => 
-        parseFloat(r.time) > parseFloat(max.time) ? r : max
-      ),
-      calories: allRecords.reduce((max, r) => 
-        parseFloat(r.calories) > parseFloat(max.calories) ? r : max
-      ),
-      speed: allRecords.reduce((max, r) => 
-        parseFloat(r.speed) > parseFloat(max.speed) ? r : max
-      ),
-    };
-
-    setBestRecords(best);
   };
 
   const getFilteredRecords = () => {
@@ -97,7 +66,6 @@ export default function HistoryScreen() {
             try {
               await AsyncStorage.setItem('bikeRecords', JSON.stringify(updatedRecords));
               setRecords(updatedRecords);
-              calculateBestRecords(updatedRecords);
               setExpandedCard(null);
             } catch (error) {
               console.error('Error deleting record:', error);
@@ -116,83 +84,15 @@ export default function HistoryScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Statistics</Text>
-          <Text style={styles.headerSubtitle}>Your best performances</Text>
-        </View>
-
-        {bestRecords.distance && (
-          <View style={styles.bestSection}>
-            <Text style={styles.sectionTitle}>Personal Records</Text>
-            
-            <View style={styles.bestGrid}>
-              <LinearGradient
-                colors={['#3B82F6', '#1E40AF']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.bestCard}
-              >
-                <Text style={styles.bestLabel}>Best Distance</Text>
-                <Text style={styles.bestValue}>{bestRecords.distance.distance} km</Text>
-                <Text style={styles.bestDate}>
-                  {new Date(bestRecords.distance.date).toLocaleDateString('en-US', { 
-                    month: 'short', 
-                    day: 'numeric' 
-                  })}
-                </Text>
-              </LinearGradient>
-
-              <LinearGradient
-                colors={['#549444', '#38C22F']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.bestCard}
-              >
-                <Text style={styles.bestLabel}>Longest Time</Text>
-                <Text style={styles.bestValue}>{bestRecords.time.time} min</Text>
-                <Text style={styles.bestDate}>
-                  {new Date(bestRecords.time.date).toLocaleDateString('en-US', { 
-                    month: 'short', 
-                    day: 'numeric' 
-                  })}
-                </Text>
-              </LinearGradient>
-
-              <LinearGradient
-                colors={['#FF0000', '#FF6200']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.bestCard}
-              >
-                <Text style={styles.bestLabel}>Most Calories</Text>
-                <Text style={styles.bestValue}>{bestRecords.calories.calories}</Text>
-                <Text style={styles.bestDate}>
-                  {new Date(bestRecords.calories.date).toLocaleDateString('en-US', { 
-                    month: 'short', 
-                    day: 'numeric' 
-                  })}
-                </Text>
-              </LinearGradient>
-
-              <LinearGradient
-                colors={['#8B5CF6', '#6D28D9']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.bestCard}
-              >
-                <Text style={styles.bestLabel}>Highest Speed</Text>
-                <Text style={styles.bestValue}>{bestRecords.speed.speed} km/h</Text>
-                <Text style={styles.bestDate}>
-                  {new Date(bestRecords.speed.date).toLocaleDateString('en-US', { 
-                    month: 'short', 
-                    day: 'numeric' 
-                  })}
-                </Text>
-              </LinearGradient>
-            </View>
-          </View>
-        )}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>History</Text>
+        <Text style={styles.headerSubtitle}>All your sessions</Text>
+      </View>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
 
         <View style={styles.filterSection}>
           <TouchableOpacity
@@ -327,10 +227,19 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollContent: {
+    paddingTop: 140,
+  },
   header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    backgroundColor: '#0F172A',
     paddingTop: 60,
     paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingBottom: 20,
   },
   headerTitle: {
     fontSize: 32,
@@ -342,45 +251,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#94A3B8',
   },
-  bestSection: {
-    marginBottom: 24,
-  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600',
     color: '#FFFFFF',
     marginBottom: 16,
     paddingHorizontal: 24,
-  },
-  bestGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 24,
-    justifyContent: 'space-between',
-  },
-  bestCard: {
-    width: (width - 64) / 2,
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 16,
-    minHeight: 100,
-    justifyContent: 'center',
-  },
-  bestLabel: {
-    fontSize: 12,
-    color: '#E0E7FF',
-    marginBottom: 8,
-    fontWeight: '500',
-  },
-  bestValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  bestDate: {
-    fontSize: 12,
-    color: '#E0E7FF',
   },
   filterSection: {
     flexDirection: 'row',
