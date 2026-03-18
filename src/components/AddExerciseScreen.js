@@ -177,7 +177,7 @@ export default function AddExerciseScreen({ navigation }) {
 
         <View style={styles.inputSection}>
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Time (mienutes)</Text>
+            <Text style={styles.label}>Time (minutes)</Text>
             <TextInput
               style={styles.input}
               value={time}
@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: '#1E293B',
-    borderRadius: 12,
+    borderRadius: 5,
     padding: 16,
     fontSize: 16,
     color: '#FFFFFF',
@@ -330,8 +330,8 @@ const styles = StyleSheet.create({
     borderColor: '#334155',
   },
   saveButton: {
-    backgroundColor: '#3B82F6',
-    borderRadius: 12,
+    backgroundColor: '#040405',
+    borderRadius: 5,
     padding: 18,
     alignItems: 'center',
     marginTop: 10,

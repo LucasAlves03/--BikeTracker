@@ -25,6 +25,13 @@ const COMPARE_OPTIONS = [
   { key: 'speed', label: 'Speed (km/h)' },
 ];
 
+const SESSION_COMPARISON_METRICS = [
+  { key: 'distance', label: 'Distance', unit: 'km' },
+  { key: 'time', label: 'Time', unit: 'min' },
+  { key: 'calories', label: 'Calories', unit: 'kcal' },
+  { key: 'speed', label: 'Speed', unit: 'km/h' },
+];
+
 export default function StatisticsScreen() {
   const [records, setRecords] = useState([]);
   const [filterType, setFilterType] = useState('all');
@@ -55,10 +62,46 @@ export default function StatisticsScreen() {
   const formatShortDate = (date) =>
     new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
+  const getRecordType = (record) => record.activityType || 'indoor';
 
   const getFilteredRecords = () => {
     if (filterType === 'all') return records;
-    return records.filter((r) => r.activityType === filterType);
+    return records.filter((r) => getRecordType(r) === filterType);
+  };
+
+  const getLastTwoByType = (type) => {
+    const sorted = records
+      .filter((record) => getRecordType(record) === type)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    if (sorted.length < 2) return null;
+    return { latest: sorted[0], previous: sorted[1] };
+  };
+
+  const formatMetricValue = (value, unit) => {
+    const numeric = parseFloat(value || 0);
+    if (unit === 'kcal' || unit === 'min') return `${Math.round(numeric)} ${unit}`;
+    return `${numeric.toFixed(1)} ${unit}`;
+  };
+
+  const buildSessionComparison = (type) => {
+    const pair = getLastTwoByType(type);
+    if (!pair) return null;
+
+    return SESSION_COMPARISON_METRICS.map((metric) => {
+      const latestValue = parseFloat(pair.latest[metric.key] || 0);
+      const previousValue = parseFloat(pair.previous[metric.key] || 0);
+      const delta = latestValue - previousValue;
+      const deltaPct = previousValue === 0 ? null : (delta / previousValue) * 100;
+
+      return {
+        ...metric,
+        latestValue,
+        previousValue,
+        delta,
+        deltaPct,
+      };
+    });
   };
 
   const buildTop10Data = (metricKey, color) => {
@@ -165,6 +208,27 @@ export default function StatisticsScreen() {
     );
   };
 
+  const renderChange = (metric) => {
+    if (metric.delta > 0) {
+      return {
+        text: `+${formatMetricValue(metric.delta, metric.unit)}${metric.deltaPct === null ? '' : ` (${metric.deltaPct.toFixed(1)}%)`}`,
+        style: styles.changeUp,
+      };
+    }
+
+    if (metric.delta < 0) {
+      return {
+        text: `${formatMetricValue(metric.delta, metric.unit)}${metric.deltaPct === null ? '' : ` (${metric.deltaPct.toFixed(1)}%)`}`,
+        style: styles.changeDown,
+      };
+    }
+
+    return {
+      text: 'No change',
+      style: styles.changeNeutral,
+    };
+  };
+
   return (
     <View style={styles.container}>
       <View
@@ -205,6 +269,49 @@ export default function StatisticsScreen() {
           </View>
         ) : (
           <>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Last Exercise Comparison</Text>
+              {(filterType === 'all' ? ['indoor', 'walk'] : [filterType]).map((type) => {
+                const pair = getLastTwoByType(type);
+                const comparison = buildSessionComparison(type);
+
+                if (!pair || !comparison) {
+                  return (
+                    <View style={styles.comparisonCard} key={type}>
+                      <Text style={styles.comparisonTitle}>
+                        {type === 'indoor' ? 'Indoor' : 'Walk'}
+                      </Text>
+                      <Text style={styles.comparisonEmptyText}>
+                        Add at least 2 {type} sessions to compare performance.
+                      </Text>
+                    </View>
+                  );
+                }
+
+                return (
+                  <View style={styles.comparisonCard} key={type}>
+                    <Text style={styles.comparisonTitle}>
+                      {type === 'indoor' ? 'Indoor' : 'Walk'}: {formatShortDate(pair.latest.date)} vs {formatShortDate(pair.previous.date)}
+                    </Text>
+                    {comparison.map((metric) => {
+                      const change = renderChange(metric);
+                      return (
+                        <View style={styles.comparisonRow} key={`${type}-${metric.key}`}>
+                          <View style={styles.comparisonMetricInfo}>
+                            <Text style={styles.comparisonMetricLabel}>{metric.label}</Text>
+                            <Text style={styles.comparisonMetricValue}>
+                              {formatMetricValue(metric.latestValue, metric.unit)} vs {formatMetricValue(metric.previousValue, metric.unit)}
+                            </Text>
+                          </View>
+                          <Text style={[styles.comparisonChangeText, change.style]}>{change.text}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                );
+              })}
+            </View>
+
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Indoor vs Walk</Text>
               <View style={styles.compareTabs}>
@@ -512,5 +619,61 @@ const styles = StyleSheet.create({
   emptyChartText: {
     fontSize: 14,
     color: '#64748B',
+  },
+  comparisonCard: {
+    marginHorizontal: 24,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#334155',
+    backgroundColor: '#111827',
+    padding: 14,
+    marginBottom: 12,
+  },
+  comparisonTitle: {
+    color: '#E2E8F0',
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  comparisonEmptyText: {
+    color: '#94A3B8',
+    fontSize: 13,
+  },
+  comparisonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#1E293B',
+  },
+  comparisonMetricInfo: {
+    flex: 1,
+  },
+  comparisonMetricLabel: {
+    color: '#E2E8F0',
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  comparisonMetricValue: {
+    color: '#94A3B8',
+    fontSize: 12,
+  },
+  comparisonChangeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'right',
+    minWidth: 90,
+  },
+  changeUp: {
+    color: '#22C55E',
+  },
+  changeDown: {
+    color: '#F87171',
+  },
+  changeNeutral: {
+    color: '#94A3B8',
   },
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useContext } from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,6 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Modal,
+  ImageBackground,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -13,11 +15,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BikeContext } from '../context/BikeContext';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
+const ACTIVITY_HEADER_IMAGES = {
+  indoor: require('../../assets/header_indoor.png'),
+  walk: require('../../assets/header_walk.png'),
+};
 
 export default function HistoryScreen() {
   const [records, setRecords] = useState([]);
   const [filter, setFilter] = useState('all'); 
-  const [expandedCard, setExpandedCard] = useState(null);
+  const [selectedRecord, setSelectedRecord] = useState(null);
   const [headerHeight, setHeaderHeight] = useState(0);
   const { refreshTrigger } = useContext(BikeContext);
 
@@ -67,7 +73,7 @@ export default function HistoryScreen() {
             try {
               await AsyncStorage.setItem('bikeRecords', JSON.stringify(updatedRecords));
               setRecords(updatedRecords);
-              setExpandedCard(null);
+              setSelectedRecord(null);
             } catch (error) {
               console.error('Error deleting record:', error);
             }
@@ -77,11 +83,44 @@ export default function HistoryScreen() {
     );
   };
 
-  const toggleCard = (id) => {
-    setExpandedCard(expandedCard === id ? null : id);
+  const getActivityType = (record) => record.activityType || 'indoor';
+
+  const getRecordTitle = (type) => (type === 'walk' ? 'Outdoor Walk' : 'Indoor Bike');
+
+  const getPreviousRecord = (record) => {
+    if (!record) return null;
+
+    const type = getActivityType(record);
+    const sortedByDate = records
+      .filter((item) => getActivityType(item) === type)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    const currentIndex = sortedByDate.findIndex((item) => item.id === record.id);
+    if (currentIndex === -1) return null;
+    return sortedByDate[currentIndex + 1] || null;
+  };
+
+  const getDeltaText = (current, previous, unit) => {
+    const currentValue = parseFloat(current || 0);
+    const previousValue = parseFloat(previous || 0);
+    const delta = currentValue - previousValue;
+    if (delta === 0) return 'No change';
+    const prefix = delta > 0 ? '+' : '';
+    return `${prefix}${delta.toFixed(1)} ${unit}`;
+  };
+
+  const getDeltaValue = (current, previous) =>
+    parseFloat(current || 0) - parseFloat(previous || 0);
+
+  const getDeltaStyle = (current, previous) => {
+    const delta = getDeltaValue(current, previous);
+    if (delta > 0) return styles.summaryDeltaUp;
+    if (delta < 0) return styles.summaryDeltaDown;
+    return styles.summaryDeltaNeutral;
   };
 
   const filteredRecords = getFilteredRecords();
+  const previousRecord = getPreviousRecord(selectedRecord);
 
   return (
     <View style={styles.container}>
@@ -143,82 +182,149 @@ export default function HistoryScreen() {
           ) : (
             <View style={styles.cardsContainer}>
               {filteredRecords.map((record) => (
-                <TouchableOpacity
+                <View
                   key={record.id}
-                  activeOpacity={0.8}
-                  onPress={() => toggleCard(record.id)}
+                  style={styles.modernCard}
                 >
-                  <LinearGradient
-                    colors={['#1E293B', '#0F172A']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={[
-                      styles.modernCard,
-                      expandedCard === record.id && styles.modernCardExpanded
-                    ]}
-                  >
-                    <View style={styles.modernCardHeader}>
-                      <View style={styles.modernCardTitleRow}>
-                        <View>
-                          <Text style={styles.modernCardDate}>{record.displayDate}</Text>
-                          <Text style={styles.modernCardTime}>{record.displayTime}</Text>
-                        </View>
-                        <Text style={styles.expandIcon}>
-                          <Ionicons 
-                          name={expandedCard === record.id ? 'chevron-down-outline' : 'chevron-forward-outline'}
-                          size={32}
-                          />                          
-                        </Text>
-                      </View>
+                  <View style={styles.horizontalCardContent}>
+                    <View style={styles.horizontalCardInfo}>
+                      <Text style={styles.modernCardDate}>{record.displayDate}</Text>
+                      <Text style={styles.modernCardTime}>{record.displayTime}</Text>
+                      <Text style={styles.activityTypeText}>
+                        {getRecordTitle(getActivityType(record))}
+                      </Text>
                     </View>
-
-                    {expandedCard === record.id && (
-                      <View style={styles.modernCardContent}>
-                        <View style={styles.statsRow}>
-                          <View style={styles.statBox}>
-                            <Text style={styles.statBoxLabel}>Time</Text>
-                            <Text style={styles.statBoxValue}>{record.time} min</Text>
-                          </View>
-                          <View style={styles.statBox}>
-                            <Text style={styles.statBoxLabel}>Speed</Text>
-                            <Text style={styles.statBoxValue}>{record.speed} km/h</Text>
-                          </View>
-                        </View>
-
-                        <View style={styles.statsRow}>
-                          <View style={styles.statBox}>
-                            <Text style={styles.statBoxLabel}>Calories</Text>
-                            <Text style={styles.statBoxValue}>{record.calories}</Text>
-                          </View>
-                          <View style={styles.statBox}>
-                            <Text style={styles.statBoxLabel}>Distance</Text>
-                            <Text style={styles.statBoxValue}>{record.distance} km</Text>
-                          </View>
-                        </View>
-
-                        {record.activityType === 'walk' && record.steps && (
-                          <View style={styles.statsRow}>
-                            <View style={styles.statBox}>
-                              <Text style={styles.statBoxLabel}>Steps</Text>
-                              <Text style={styles.statBoxValue}>{record.steps}</Text>
-                            </View>
-                          </View>
-                        )}
-
-                        <TouchableOpacity
-                          style={styles.deleteButton}
-                          onPress={() => deleteRecord(record.id)}
-                        >
-                          <Text style={styles.deleteButtonText}>Delete Session</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </LinearGradient>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.viewButton}
+                      onPress={() => setSelectedRecord(record)}
+                    >
+                      <Text style={styles.viewButtonText}>
+                        <Ionicons name='chevron-forward' color={'white'} size={28} />
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               ))}
             </View>
           )}
         </View>
+
+        <Modal
+          visible={!!selectedRecord}
+          animationType="slide"
+          transparent={false}
+          onRequestClose={() => setSelectedRecord(null)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              {selectedRecord && (
+                <>
+                  <ImageBackground
+                    source={ACTIVITY_HEADER_IMAGES[getActivityType(selectedRecord)]}
+                    style={styles.modalHeaderImage}
+                    imageStyle={styles.modalHeaderImageStyle}
+                    resizeMode="cover"
+                  >
+                    <View style={styles.modalHeaderOverlay}>
+                      <Text style={styles.modalHeaderTitle}>
+                        {getRecordTitle(getActivityType(selectedRecord))}
+                      </Text>
+                      <Text style={styles.modalHeaderSubtitle}>
+                        {selectedRecord.displayDate} - {selectedRecord.displayTime}
+                      </Text>
+                    </View>
+                  </ImageBackground>
+
+                  <ScrollView
+                    style={styles.modalBodyScroll}
+                    contentContainerStyle={styles.modalBodyContent}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    <Text style={styles.modalSectionTitle}>Session Summary</Text>
+
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>Time</Text>
+                      <Text style={styles.summaryValue}>{selectedRecord.time} min</Text>
+                    </View>
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>Distance</Text>
+                      <Text style={styles.summaryValue}>{selectedRecord.distance} km</Text>
+                    </View>
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>Speed</Text>
+                      <Text style={styles.summaryValue}>{selectedRecord.speed} km/h</Text>
+                    </View>
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>Calories</Text>
+                      <Text style={styles.summaryValue}>{selectedRecord.calories} kcal</Text>
+                    </View>
+                    {getActivityType(selectedRecord) === 'walk' && selectedRecord.steps ? (
+                      <View style={styles.summaryRow}>
+                        <Text style={styles.summaryLabel}>Steps</Text>
+                        <Text style={styles.summaryValue}>{selectedRecord.steps}</Text>
+                      </View>
+                    ) : null}
+
+                    <View style={styles.sectionDivider}>
+                      <View style={styles.sectionDividerLine} />
+                    </View>
+
+                    {previousRecord ? (
+                      <>
+                        <Text style={styles.modalSectionTitle}>
+                          Vs Previous {getRecordTitle(getActivityType(selectedRecord))}
+                        </Text>
+                        <View style={styles.summaryRow}>
+                          <Text style={styles.summaryLabel}>Time change</Text>
+                          <Text style={[styles.summaryDelta, getDeltaStyle(selectedRecord.time, previousRecord.time)]}>
+                            {getDeltaText(selectedRecord.time, previousRecord.time, 'min')}
+                          </Text>
+                        </View>
+                        <View style={styles.summaryRow}>
+                          <Text style={styles.summaryLabel}>Distance change</Text>
+                          <Text style={[styles.summaryDelta, getDeltaStyle(selectedRecord.distance, previousRecord.distance)]}>
+                            {getDeltaText(selectedRecord.distance, previousRecord.distance, 'km')}
+                          </Text>
+                        </View>
+                        <View style={styles.summaryRow}>
+                          <Text style={styles.summaryLabel}>Speed change</Text>
+                          <Text style={[styles.summaryDelta, getDeltaStyle(selectedRecord.speed, previousRecord.speed)]}>
+                            {getDeltaText(selectedRecord.speed, previousRecord.speed, 'km/h')}
+                          </Text>
+                        </View>
+                        <View style={styles.summaryRow}>
+                          <Text style={styles.summaryLabel}>Calories change</Text>
+                          <Text style={[styles.summaryDelta, getDeltaStyle(selectedRecord.calories, previousRecord.calories)]}>
+                            {getDeltaText(selectedRecord.calories, previousRecord.calories, 'kcal')}
+                          </Text>
+                        </View>
+                      </>
+                    ) : (
+                      <Text style={styles.noPreviousText}>
+                        No previous {getRecordTitle(getActivityType(selectedRecord)).toLowerCase()} session to compare yet.
+                      </Text>
+                    )}
+
+                    <View style={styles.modalActions}>
+                      <TouchableOpacity
+                        style={styles.modalCloseButton}
+                        onPress={() => setSelectedRecord(null)}
+                      >
+                        <Text style={styles.modalCloseButtonText}>Close</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={() => deleteRecord(selectedRecord.id)}
+                      >
+                        <Text style={styles.deleteButtonText}>Delete</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </ScrollView>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -301,21 +407,18 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   modernCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#334155',
-    overflow: 'hidden',
+    backgroundColor: '#040404',
+    borderRadius: 13,
   },
-  modernCardExpanded: {
-    borderColor: '#3B82F6',
-  },
-  modernCardHeader: {
-    padding: 16,
-  },
-  modernCardTitleRow: {
+  horizontalCardContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    padding: 16,
+    gap: 12,
+  },
+  horizontalCardInfo: {
+    flex: 1,
   },
   modernCardDate: {
     fontSize: 18,
@@ -327,47 +430,141 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#94A3B8',
   },
-  expandIcon: {
-    fontSize: 16,
-    color: '#3B82F6',
-    fontWeight: 'bold',
+  activityTypeText: {
+    marginTop: 8,
+    color: '#D1D5DB',
+    fontSize: 12,
+    fontWeight: '600',
   },
-  modernCardContent: {
+  viewButton: {
+    backgroundColor: 'transparent',
+    paddingVertical: 10,
     paddingHorizontal: 16,
-    paddingBottom: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#334155',
-    paddingTop: 16,
+    borderRadius: 5,
   },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
+  viewButtonText: {
+    color: '#fff',
+    borderWidth: 2,
+    padding: 10
   },
-  statBox: {
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: '#020617',
+  },
+  modalCard: {
     flex: 1,
     backgroundColor: '#0F172A',
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#334155',
+    borderRadius: 0,
+    overflow: 'hidden',
   },
-  statBoxLabel: {
-    fontSize: 12,
-    color: '#94A3B8',
-    marginBottom: 6,
+  modalHeaderImage: {
+    height: 350,
+    justifyContent: 'flex-end',
   },
-  statBoxValue: {
-    fontSize: 20,
-    fontWeight: '600',
+  modalHeaderImageStyle: {
+    opacity: 0.78,
+  },
+  modalHeaderOverlay: {
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    backgroundColor: 'rgba(2, 6, 23, 0.34)',
+  },
+  modalHeaderTitle: {
     color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  modalHeaderSubtitle: {
+    color: '#E5E7EB',
+    fontSize: 14,
+  },
+  modalBodyScroll: {
+    flex: 1,
+  },
+  modalBodyContent: {
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 24,
+  },
+  modalSectionTitle: {
+    color: '#F8FAFC',
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 12,
+    marginTop: 2,
+    letterSpacing: 0.2,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1F2937',
+    gap: 12,
+  },
+  summaryLabel: {
+    color: '#9CA3AF',
+    fontSize: 14,
+    flex: 1,
+  },
+  summaryValue: {
+    color: '#E2E8F0',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  summaryDelta: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  summaryDeltaUp: {
+    color: '#22C55E',
+  },
+  summaryDeltaDown: {
+    color: '#F87171',
+  },
+  summaryDeltaNeutral: {
+    color: '#A1A1AA',
+  },
+  noPreviousText: {
+    color: '#9CA3AF',
+    fontSize: 13,
+    marginTop: 6,
+    marginBottom: 10,
+  },
+  sectionDivider: {
+    paddingVertical: 16,
+  },
+  sectionDividerLine: {
+    height: 1,
+    backgroundColor: '#374151',
+  },
+  modalActions: {
+    marginTop: 18,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  modalCloseButton: {
+    flex: 1,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#374151',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  modalCloseButtonText: {
+    color: '#E2E8F0',
+    fontSize: 14,
+    fontWeight: '600',
   },
   deleteButton: {
+    flex: 1,
     backgroundColor: '#7F1D1D',
-    padding: 14,
-    borderRadius: 12,
+    paddingVertical: 12,
+    borderRadius: 10,
     alignItems: 'center',
-    marginTop: 8,
   },
   deleteButtonText: {
     color: '#FCA5A5',

@@ -663,7 +663,7 @@ const styles = StyleSheet.create({
     
   },
   glassStatCard: {
-    backgroundColor: '#000',
+    backgroundColor: '#040404',
     width: (width - 64) / 2,
     marginBottom: 16,
     borderRadius: 16,
@@ -680,12 +680,12 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#fff',
     marginBottom: 2,
   },
   statSubtitle: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: '#0078d4',
   },
   motivationText: {
     fontSize: 16,
