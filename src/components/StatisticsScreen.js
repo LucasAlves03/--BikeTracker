@@ -11,12 +11,25 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LineChart } from 'react-native-gifted-charts';
 import { BikeContext } from '../context/BikeContext';
 
-const METRICS = [
-  { key: 'distance', label: 'Top 10 Distance', unit: 'km', color: '#111827' },
-  { key: 'time', label: 'Top 10 Longest Time', unit: 'min', color: '#111827' },
-  { key: 'calories', label: 'Top 10 Calories', unit: 'kcal', color: '#111827' },
-  { key: 'speed', label: 'Top 10 Speed', unit: 'km/h', color: '#111827' },
+const PERFORMANCE_METRICS = [
+  { key: 'distance', label: 'Best Distance', unit: 'km' },
+  { key: 'time', label: 'Best Time', unit: 'min' },
+  { key: 'calories', label: 'Best Calories', unit: 'kcal' },
+  { key: 'speed', label: 'Best Speed', unit: 'km/h' },
 ];
+
+const ACTIVITY_COLORS = {
+  indoor: '#F97316',
+  walk: '#7DD3FC',
+};
+const BEST_POINTS = 10;
+const hexToRgba = (hex, alpha) => {
+  const normalized = hex.replace('#', '');
+  const r = parseInt(normalized.substring(0, 2), 16);
+  const g = parseInt(normalized.substring(2, 4), 16);
+  const b = parseInt(normalized.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
 
 const COMPARE_OPTIONS = [
   { key: 'distance', label: 'Distance (km)' },
@@ -36,6 +49,7 @@ export default function StatisticsScreen() {
   const [records, setRecords] = useState([]);
   const [filterType, setFilterType] = useState('all');
   const [compareMetric, setCompareMetric] = useState('distance');
+  const [bestActivityType, setBestActivityType] = useState('indoor');
   const [headerHeight, setHeaderHeight] = useState(0);
   const { refreshTrigger } = useContext(BikeContext);
 
@@ -104,74 +118,30 @@ export default function StatisticsScreen() {
     });
   };
 
-  const buildTop10Data = (metricKey, color) => {
-    const filtered = getFilteredRecords();
-    const sorted = [...filtered]
+  const buildBestMetricSeries = (metricKey, type) => {
+    const sorted = [...records]
+      .filter((r) => getRecordType(r) === type)
       .filter((r) => r[metricKey] !== undefined && r[metricKey] !== null)
       .sort((a, b) => parseFloat(b[metricKey]) - parseFloat(a[metricKey]))
-      .slice(0, 10);
+      .slice(0, BEST_POINTS);
 
-    return sorted.map((r) => ({
+    const ranked = sorted.map((r, index) => ({
       value: parseFloat(r[metricKey]),
-      label: formatShortDate(r.date),
-      frontColor: color,
+      label: `#${index + 1}`,
     }));
-  };
 
-  const getLastMonths = (count) => {
-    const months = [];
-    const now = new Date();
-    for (let i = count - 1; i >= 0; i -= 1) {
-      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.push({
-        key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
-        label: date.toLocaleDateString('en-US', { month: 'short' }),
+    for (let i = ranked.length; i < BEST_POINTS; i += 1) {
+      ranked.push({
+        value: 0,
+        label: `#${i + 1}`,
       });
     }
-    return months;
+
+    return {
+      data: ranked,
+      hasData: sorted.length > 0,
+    };
   };
-
-  const buildMonthlySeries = (type, metricKey) => {
-    const months = getLastMonths(6);
-    const buckets = months.reduce((acc, month) => {
-      acc[month.key] = { total: 0, count: 0 };
-      return acc;
-    }, {});
-
-    records.forEach((r) => {
-      const recordType = r.activityType || 'indoor';
-      if (recordType !== type) return;
-
-      const date = new Date(r.date);
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      if (!buckets[key]) return;
-
-      const value = parseFloat(r[metricKey] || 0);
-      buckets[key].total += value;
-      buckets[key].count += 1;
-    });
-
-    return months.map((month) => {
-      const { total, count } = buckets[month.key];
-      const value =
-        metricKey === 'speed' ? (count > 0 ? total / count : 0) : total;
-      return {
-        value: parseFloat(value.toFixed(1)),
-        label: month.label,
-      };
-    });
-  };
-
-  const indoorSeries = buildMonthlySeries('indoor', compareMetric);
-  const walkSeries = buildMonthlySeries('walk', compareMetric);
-  const comparisonData =
-    filterType === 'walk' ? walkSeries : indoorSeries;
-  const comparisonData2 = filterType === 'all' ? walkSeries : null;
-  const maxComparisonValue = Math.max(
-    ...comparisonData.map((item) => item.value),
-    ...(comparisonData2 ? comparisonData2.map((item) => item.value) : []),
-    1
-  );
 
   const getPointerItem = (items, index = 0) => {
     if (!items) return null;
@@ -180,7 +150,14 @@ export default function StatisticsScreen() {
   };
 
   const renderTooltip =
-    ({ unit, showSecondary, primaryLabel = 'Value', secondaryLabel = 'Walk' }) =>
+    ({
+      unit,
+      showSecondary,
+      primaryLabel = 'Value',
+      secondaryLabel = 'Walk',
+      primaryColor = '#111827',
+      secondaryColor = '#6B7280',
+    }) =>
     // eslint-disable-next-line react/display-name
     (items, secondaryItems) => {
     const primaryItem = getPointerItem(items, 0);
@@ -191,14 +168,14 @@ export default function StatisticsScreen() {
       <View style={styles.tooltipContainer}>
         <Text style={styles.tooltipTitle}>{label}</Text>
         <View style={styles.tooltipRow}>
-          <View style={[styles.tooltipDot, { backgroundColor: '#111827' }]} />
+          <View style={[styles.tooltipDot, { backgroundColor: primaryColor }]} />
           <Text style={styles.tooltipText}>
             {primaryLabel}: {primaryItem?.value ?? 0} {unit}
           </Text>
         </View>
         {showSecondary && (
           <View style={styles.tooltipRow}>
-            <View style={[styles.tooltipDot, { backgroundColor: '#6B7280' }]} />
+            <View style={[styles.tooltipDot, { backgroundColor: secondaryColor }]} />
             <Text style={styles.tooltipText}>
               {secondaryLabel}: {secondaryItem?.value ?? 0} {unit}
             </Text>
@@ -228,6 +205,16 @@ export default function StatisticsScreen() {
       style: styles.changeNeutral,
     };
   };
+
+  const selectedMetric = PERFORMANCE_METRICS.find((metric) => metric.key === compareMetric)
+    || PERFORMANCE_METRICS[0];
+  const indoorBestSeries = buildBestMetricSeries(compareMetric, 'indoor');
+  const walkBestSeries = buildBestMetricSeries(compareMetric, 'walk');
+  const activeBestSeries = bestActivityType === 'walk' ? walkBestSeries : indoorBestSeries;
+  const activeBestColor =
+    bestActivityType === 'walk' ? ACTIVITY_COLORS.walk : ACTIVITY_COLORS.indoor;
+  const activeBestLabel = bestActivityType === 'walk' ? 'Walk' : 'Indoor';
+  const activeBestMaxValue = Math.max(...activeBestSeries.data.map((point) => point.value), 1);
 
   return (
     <View style={styles.container}>
@@ -313,7 +300,23 @@ export default function StatisticsScreen() {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Indoor vs Walk</Text>
+              <Text style={styles.sectionTitle}>Best Results</Text>
+              <View style={styles.bestToggle}>
+                {['indoor', 'walk'].map((type) => {
+                  const isActive = bestActivityType === type;
+                  return (
+                    <TouchableOpacity
+                      key={type}
+                      style={[styles.bestTab, isActive && styles.bestTabActive]}
+                      onPress={() => setBestActivityType(type)}
+                    >
+                      <Text style={[styles.bestTabText, isActive && styles.bestTabTextActive]}>
+                        {type === 'walk' ? 'Walk' : 'Indoor'}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
               <View style={styles.compareTabs}>
                 {COMPARE_OPTIONS.map((option) => (
                   <TouchableOpacity
@@ -335,111 +338,65 @@ export default function StatisticsScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
+              
               <View style={styles.chartCard}>
-                <LineChart
-                  data={comparisonData}
-                  data2={comparisonData2 || undefined}
-                  curved
-                  thickness={2}
-                  spacing={42}
-                  maxValue={maxComparisonValue * 1.15}
-                  color="#111827"
-                  color2="#6B7280"
-                  yAxisColor="rgba(15, 23, 42, 0.2)"
-                  xAxisColor="rgba(15, 23, 42, 0.2)"
-                  yAxisThickness={1}
-                  xAxisThickness={1}
-                  noOfSections={4}
-                  xAxisLabelTextStyle={styles.chartLabel}
-                  yAxisTextStyle={styles.chartLabel}
-                  pointerConfig={{
-                    pointerColor: '#111827',
-                    pointer2Color: '#6B7280',
-                    pointerStripColor: 'rgba(15, 23, 42, 0.2)',
-                    pointerStripWidth: 1,
-                    pointerStripUptoDataPoint: true,
-                    autoAdjustPointerLabelPosition: true,
-                    pointerLabelWidth: 160,
-                    pointerLabelHeight: 72,
-                    activatePointersOnLongPress: false,
-                    activatePointersInstantlyOnTouch: true,
-                    persistPointer: true,
-                    resetPointerIndexOnRelease: false,
-                    pointerVanishDelay: 2000,
-                    pointerLabelComponent: renderTooltip({
-                      unit:
-                        compareMetric === 'calories'
-                          ? 'kcal'
-                          : compareMetric === 'time'
-                          ? 'min'
-                          : compareMetric === 'speed'
-                          ? 'km/h'
-                          : 'km',
-                      showSecondary: filterType === 'all',
-                      primaryLabel: filterType === 'walk' ? 'Walk' : 'Indoor',
-                      secondaryLabel: 'Walk',
-                    }),
-                  }}
-                />
+                {!activeBestSeries.hasData ? (
+                  <View style={styles.emptyChart}>
+                    <Text style={styles.emptyChartText}>
+                      {bestActivityType === 'walk' ? 'No walk records' : 'No indoor records'}
+                    </Text>
+                  </View>
+                ) : (
+                  <LineChart
+                    data={activeBestSeries.data}
+                    areaChart
+                    curved
+                    thickness={2}
+                    adjustToWidth
+                    spacing={28}
+                    initialSpacing={0}
+                    endSpacing={0}
+                    maxValue={activeBestMaxValue * 1.15}
+                    color={activeBestColor}
+                    startFillColor={hexToRgba(activeBestColor, 0.28)}
+                    endFillColor={hexToRgba(activeBestColor, 0.05)}
+                    yAxisColor="rgba(15, 23, 42, 0.2)"
+                    xAxisColor="rgba(15, 23, 42, 0.2)"
+                    yAxisThickness={1}
+                    xAxisThickness={1}
+                    noOfSections={4}
+                    xAxisLabelTextStyle={styles.chartLabel}
+                    yAxisTextStyle={styles.chartLabel}
+                    pointerConfig={{
+                      pointerColor: activeBestColor,
+                      pointerStripColor: 'rgba(15, 23, 42, 0.2)',
+                      pointerStripWidth: 1,
+                      pointerStripUptoDataPoint: true,
+                      autoAdjustPointerLabelPosition: true,
+                      pointerLabelWidth: 140,
+                      pointerLabelHeight: 64,
+                      activatePointersOnLongPress: false,
+                      activatePointersInstantlyOnTouch: true,
+                      persistPointer: true,
+                      resetPointerIndexOnRelease: false,
+                      pointerVanishDelay: 2000,
+                      pointerLabelComponent: renderTooltip({
+                        unit: selectedMetric.unit,
+                        showSecondary: false,
+                        primaryLabel: activeBestLabel,
+                        primaryColor: activeBestColor,
+                      }),
+                    }}
+                  />
+                )}
+              </View>
+              <View style={styles.bestLegendRow}>
+                <View style={styles.bestLegendItem}>
+                  <View style={[styles.bestLegendDot, { backgroundColor: activeBestColor }]} />
+                  <Text style={styles.bestLegendText}>{activeBestLabel}</Text>
+                </View>
               </View>
             </View>
-
-            {METRICS.map((metric) => {
-              const data = buildTop10Data(metric.key, metric.color);
-              const maxValue = Math.max(...data.map((d) => d.value), 1);
-              return (
-                <View style={styles.section} key={metric.key}>
-                  <Text style={styles.sectionTitle}>{metric.label}</Text>
-                  <View style={styles.chartCard}>
-                    {data.length === 0 ? (
-                      <View style={styles.emptyChart}>
-                        <Text style={styles.emptyChartText}>No records for this filter</Text>
-                      </View>
-                    ) : (
-                      <LineChart
-                        data={data}
-                        areaChart
-                        curved
-                        thickness={2}
-                        spacing={26}
-                        maxValue={maxValue * 1.15}
-                        color={metric.color}
-                        startFillColor="rgba(15, 23, 42, 0.2)"
-                        endFillColor="rgba(15, 23, 42, 0.02)"
-                        hideDataPoints
-                        yAxisColor="rgba(15, 23, 42, 0.2)"
-                        xAxisColor="rgba(15, 23, 42, 0.2)"
-                        yAxisThickness={1}
-                        xAxisThickness={1}
-                        noOfSections={4}
-                        xAxisLabelTextStyle={styles.chartLabel}
-                        yAxisTextStyle={styles.chartLabel}
-                        pointerConfig={{
-                          pointerColor: '#111827',
-                          pointerStripColor: 'rgba(15, 23, 42, 0.2)',
-                          pointerStripWidth: 1,
-                          pointerStripUptoDataPoint: true,
-                          autoAdjustPointerLabelPosition: true,
-                          pointerLabelWidth: 140,
-                          pointerLabelHeight: 64,
-                          activatePointersOnLongPress: false,
-                          activatePointersInstantlyOnTouch: true,
-                          persistPointer: true,
-                          resetPointerIndexOnRelease: false,
-                          pointerVanishDelay: 2000,
-                          pointerLabelComponent: renderTooltip({
-                            unit: metric.unit,
-                            showSecondary: false,
-                            primaryLabel: 'Value',
-                          }),
-                        }}
-                      />
-                    )}
-                  </View>
-                  <Text style={styles.metricFootnote}>Units: {metric.unit}</Text>
-                </View>
-              );
-            })}
           </>
         )}
 
@@ -592,12 +549,6 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     fontWeight: '600',
   },
-  metricFootnote: {
-    color: '#64748B',
-    fontSize: 12,
-    paddingHorizontal: 24,
-    marginTop: 6,
-  },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 80,
@@ -675,5 +626,51 @@ const styles = StyleSheet.create({
   },
   changeNeutral: {
     color: '#94A3B8',
+  },
+  bestToggle: {
+    flexDirection: 'row',
+    width: '50%',
+    paddingHorizontal: 1,
+    marginBottom: 12,
+    backgroundColor: '#000000',
+    borderRadius: 12,
+    padding: 3,
+  },
+  bestTab: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  bestTabActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  bestTabText: {
+    color: '#94A3B8',
+    fontSize: 21,
+    fontWeight: '600',
+  },
+  bestTabTextActive: {
+    color: '#000000',
+  },
+  bestLegendRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 24,
+    marginTop: 10,
+  },
+  bestLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  bestLegendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  bestLegendText: {
+    color: '#CBD5E1',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
