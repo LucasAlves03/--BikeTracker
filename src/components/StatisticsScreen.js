@@ -300,7 +300,6 @@ export default function StatisticsScreen() {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Best Results</Text>
               <View style={styles.bestToggle}>
                 {['indoor', 'walk'].map((type) => {
                   const isActive = bestActivityType === type;
@@ -456,7 +455,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   filterButtonActive: {
-    backgroundColor: '#111827',
+    backgroundColor: '#fff',
     borderColor: '#111827',
   },
   filterText: {
@@ -465,17 +464,10 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
   },
   filterTextActive: {
-    color: '#FFFFFF',
+    color: '#000',
   },
   section: {
     marginBottom: 28,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 12,
-    paddingHorizontal: 24,
   },
   compareTabs: {
     flexDirection: 'row',
@@ -486,14 +478,14 @@ const styles = StyleSheet.create({
   },
   compareTab: {
     paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: 'gray',
     backgroundColor: '#0F172A',
   },
   compareTabActive: {
-    backgroundColor: '#111827',
+    backgroundColor: '#fff',
     borderColor: '#111827',
   },
   compareTabText: {
@@ -502,7 +494,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   compareTabTextActive: {
-    color: '#FFFFFF',
+    color: '#000',
   },
   chartCard: {
     marginHorizontal: 24,
@@ -571,6 +563,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#64748B',
   },
+  sectionTitle:{
+    color: '#fff',
+    paddingHorizontal: 22,
+    paddingVertical: 10,
+    fontSize: 18,
+    fontWeight: 700
+  },
   comparisonCard: {
     marginHorizontal: 24,
     borderRadius: 16,
@@ -629,12 +628,13 @@ const styles = StyleSheet.create({
   },
   bestToggle: {
     flexDirection: 'row',
-    width: '50%',
-    paddingHorizontal: 1,
+    width: '90%',
+    alignSelf: 'center',
     marginBottom: 12,
+    marginLeft: 15,
     backgroundColor: '#000000',
     borderRadius: 12,
-    padding: 3,
+    padding:3,
   },
   bestTab: {
     flex: 1,
@@ -647,7 +647,7 @@ const styles = StyleSheet.create({
   },
   bestTabText: {
     color: '#94A3B8',
-    fontSize: 21,
+    fontSize: 16,
     fontWeight: '600',
   },
   bestTabTextActive: {
