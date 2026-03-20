@@ -6,7 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LineChart } from 'react-native-gifted-charts';
 import { BikeContext } from '../context/BikeContext';
@@ -23,6 +23,7 @@ const ACTIVITY_COLORS = {
   walk: '#7DD3FC',
 };
 const BEST_POINTS = 10;
+const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const hexToRgba = (hex, alpha) => {
   const normalized = hex.replace('#', '');
   const r = parseInt(normalized.substring(0, 2), 16);
@@ -46,10 +47,12 @@ const SESSION_COMPARISON_METRICS = [
 ];
 
 export default function StatisticsScreen() {
+  const navigation = useNavigation();
   const [records, setRecords] = useState([]);
   const [filterType, setFilterType] = useState('all');
   const [compareMetric, setCompareMetric] = useState('distance');
   const [bestActivityType, setBestActivityType] = useState('indoor');
+  const [selectedMonths, setSelectedMonths] = useState({});
   const [headerHeight, setHeaderHeight] = useState(0);
   const { refreshTrigger } = useContext(BikeContext);
 
@@ -77,6 +80,28 @@ export default function StatisticsScreen() {
     new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
   const getRecordType = (record) => record.activityType || 'indoor';
+  const getDayKey = (dateValue) => {
+    const date = new Date(dateValue);
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    const day = `${date.getDate()}`.padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const getMonthKey = (dateValue) => {
+    const date = new Date(dateValue);
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    return `${year}-${month}`;
+  };
+  const getDateFromMonthKey = (monthKey) => {
+    const [year, month] = monthKey.split('-').map(Number);
+    return new Date(year, month - 1, 1);
+  };
+  const formatMonthLabel = (monthKey) =>
+    getDateFromMonthKey(monthKey).toLocaleDateString('en-US', {
+      month: 'short',
+      year: 'numeric',
+    });
 
   const getFilteredRecords = () => {
     if (filterType === 'all') return records;
@@ -215,6 +240,80 @@ export default function StatisticsScreen() {
     bestActivityType === 'walk' ? ACTIVITY_COLORS.walk : ACTIVITY_COLORS.indoor;
   const activeBestLabel = bestActivityType === 'walk' ? 'Walk' : 'Indoor';
   const activeBestMaxValue = Math.max(...activeBestSeries.data.map((point) => point.value), 1);
+  const frequencyTypes = filterType === 'all' ? ['indoor', 'walk'] : [filterType];
+
+  const getAvailableMonths = (type) => {
+    const monthSet = new Set();
+    monthSet.add(getMonthKey(new Date()));
+
+    const typeRecords = records.filter((record) => getRecordType(record) === type);
+    typeRecords.forEach((record) => monthSet.add(getMonthKey(record.date)));
+
+    return Array.from(monthSet).sort((a, b) => b.localeCompare(a));
+  };
+
+  const buildMonthHeatmap = (type, monthKey) => {
+    const dayCount = {};
+
+    records
+      .filter((record) => getRecordType(record) === type)
+      .forEach((record) => {
+        const key = getDayKey(record.date);
+        dayCount[key] = (dayCount[key] || 0) + 1;
+      });
+
+    const targetMonth = getDateFromMonthKey(monthKey);
+    const monthStart = new Date(targetMonth.getFullYear(), targetMonth.getMonth(), 1);
+    const monthEnd = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0);
+    const gridStart = new Date(monthStart);
+    gridStart.setDate(monthStart.getDate() - monthStart.getDay());
+    const gridEnd = new Date(monthEnd);
+    gridEnd.setDate(monthEnd.getDate() + (6 - monthEnd.getDay()));
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const cells = [];
+    const cursor = new Date(gridStart);
+    while (cursor.getTime() <= gridEnd.getTime()) {
+      const key = getDayKey(cursor);
+      cells.push({
+        key: `${type}-${key}`,
+        dayKey: key,
+        day: cursor.getDate(),
+        count: dayCount[key] || 0,
+        isCurrentMonth: cursor.getMonth() === targetMonth.getMonth(),
+        isFuture: cursor.getTime() > today.getTime(),
+      });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    const maxCount = Math.max(
+      ...cells.filter((cell) => cell.isCurrentMonth).map((cell) => cell.count),
+      0
+    );
+    const rows = [];
+    for (let i = 0; i < cells.length; i += 7) {
+      rows.push(cells.slice(i, i + 7));
+    }
+
+    return { rows, maxCount };
+  };
+
+  const getHeatColor = (count, maxCount, baseColor, isCurrentMonth, isFuture) => {
+    if (!isCurrentMonth) return '#F8FAFC';
+    if (isFuture) return '#F1F5F9';
+    if (count === 0 || maxCount === 0) return '#E2E8F0';
+    const intensity = count / maxCount;
+    const alpha = 0.2 + intensity * 0.8;
+    return hexToRgba(baseColor, alpha);
+  };
+  const navigateToHistoryDate = (dayKey, type) => {
+    navigation.navigate('History', {
+      highlightDate: dayKey,
+      highlightType: type,
+      highlightRequestId: Date.now(),
+    });
+  };
 
   return (
     <View style={styles.container}>
@@ -395,6 +494,110 @@ export default function StatisticsScreen() {
                   <Text style={styles.bestLegendText}>{activeBestLabel}</Text>
                 </View>
               </View>
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Exercise Frequency</Text>
+              {frequencyTypes.map((type) => {
+                const label = type === 'walk' ? 'Walk' : 'Indoor';
+                const color = ACTIVITY_COLORS[type];
+                const months = getAvailableMonths(type);
+                const selectedMonth = months.includes(selectedMonths[type])
+                  ? selectedMonths[type]
+                  : months[0];
+                const heatmap = buildMonthHeatmap(type, selectedMonth);
+
+                return (
+                  <View style={styles.heatmapCard} key={`heatmap-${type}`}>
+                    <View style={styles.heatmapHeaderRow}>
+                      <Text style={styles.heatmapTypeTitle}>{label}</Text>
+                      <Text style={styles.heatmapHint}>Tap a month</Text>
+                    </View>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.monthTabsRow}
+                    >
+                      {months.map((monthKey) => {
+                        const isActive = selectedMonth === monthKey;
+                        return (
+                          <TouchableOpacity
+                            key={`${type}-${monthKey}`}
+                            style={[
+                              styles.monthTab,
+                              isActive && styles.monthTabActive,
+                            ]}
+                            onPress={() =>
+                              setSelectedMonths((prev) => ({ ...prev, [type]: monthKey }))
+                            }
+                          >
+                            <Text
+                              style={[
+                                styles.monthTabText,
+                                isActive && styles.monthTabTextActive,
+                              ]}
+                            >
+                              {formatMonthLabel(monthKey)}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                    <View style={styles.heatmapWeekHeader}>
+                      {WEEKDAY_LABELS.map((day, dayIndex) => (
+                        <Text style={styles.heatmapWeekdayLabel} key={`${type}-${day}-${dayIndex}`}>
+                          {day}
+                        </Text>
+                      ))}
+                    </View>
+                    <View style={styles.heatmapGridContainer}>
+                      {heatmap.rows.map((row, rowIndex) => (
+                        <View style={styles.heatmapRow} key={`${type}-row-${rowIndex}`}>
+                          {row.map((cell) => {
+                            const cellColor = getHeatColor(
+                              cell.count,
+                              heatmap.maxCount,
+                              color,
+                              cell.isCurrentMonth,
+                              cell.isFuture
+                            );
+                            const highIntensity =
+                              cell.isCurrentMonth
+                              && heatmap.maxCount > 0
+                              && cell.count / heatmap.maxCount >= 0.55;
+
+                            return (
+                              <TouchableOpacity
+                                key={cell.key}
+                                disabled={!cell.isCurrentMonth || cell.isFuture || cell.count === 0}
+                                onPress={() => navigateToHistoryDate(cell.dayKey, type)}
+                                style={[
+                                  styles.heatmapSquare,
+                                  cell.count > 0
+                                  && cell.isCurrentMonth
+                                  && !cell.isFuture
+                                  && styles.heatmapSquarePressable,
+                                  { backgroundColor: cellColor },
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    styles.heatmapDayText,
+                                    !cell.isCurrentMonth && styles.heatmapDayTextMuted,
+                                    highIntensity && styles.heatmapDayTextStrong,
+                                  ]}
+                                >
+                                  {cell.day}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                );
+              })}
             </View>
           </>
         )}
@@ -672,5 +875,92 @@ const styles = StyleSheet.create({
     color: '#CBD5E1',
     fontSize: 12,
     fontWeight: '600',
+  },
+  heatmapCard: {
+    marginHorizontal: 24,
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 12,
+    backgroundColor: '#FFFFFF',
+  },
+  heatmapHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  heatmapTypeTitle: {
+    color: '#0F172A',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  heatmapHint: {
+    color: '#64748B',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  monthTabsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingBottom: 10,
+  },
+  monthTab: {
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: '#F1F5F9',
+  },
+  monthTabActive: {
+    backgroundColor: '#0F172A',
+  },
+  monthTabText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  monthTabTextActive: {
+    color: '#FFFFFF',
+  },
+  heatmapWeekHeader: {
+    flexDirection: 'row',
+    marginBottom: 6,
+    gap: 6,
+  },
+  heatmapWeekdayLabel: {
+    flex: 1,
+    textAlign: 'center',
+    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  heatmapGridContainer: {
+    width: '100%',
+    gap: 6,
+  },
+  heatmapRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  heatmapSquare: {
+    flex: 1,
+    aspectRatio: 1,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 30,
+  },
+  heatmapSquarePressable: {
+    opacity: 1,
+  },
+  heatmapDayText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  heatmapDayTextMuted: {
+    color: '#94A3B8',
+  },
+  heatmapDayTextStrong: {
+    color: '#FFFFFF',
   },
 });

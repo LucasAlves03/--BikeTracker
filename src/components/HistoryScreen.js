@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useMemo, useRef, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,7 +9,7 @@ import {
   Modal,
   ImageBackground,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BikeContext } from '../context/BikeContext';
@@ -21,10 +21,15 @@ const ACTIVITY_HEADER_IMAGES = {
 };
 
 export default function HistoryScreen() {
+  const navigation = useNavigation();
+  const route = useRoute();
   const [records, setRecords] = useState([]);
   const [filter, setFilter] = useState('all'); 
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [activeHighlight, setActiveHighlight] = useState(null);
   const [headerHeight, setHeaderHeight] = useState(0);
+  const scrollViewRef = useRef(null);
+  const cardPositionsRef = useRef({});
   const { refreshTrigger } = useContext(BikeContext);
 
   useFocusEffect(
@@ -44,6 +49,21 @@ export default function HistoryScreen() {
       console.error('Error loading records:', error);
     }
   };
+  const getDayKey = (dateValue) => {
+    const date = new Date(dateValue);
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    const day = `${date.getDate()}`.padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const formatDayKey = (dayKey) => {
+    const [year, month, day] = dayKey.split('-').map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
 
   const getFilteredRecords = () => {
     const now = new Date();
@@ -56,7 +76,7 @@ export default function HistoryScreen() {
       return records.filter(r => new Date(r.date) >= oneMonthAgo);
     }
     
-    return records;
+    return [...records].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   };
 
   const deleteRecord = async (id) => {
@@ -119,7 +139,52 @@ export default function HistoryScreen() {
     return styles.summaryDeltaNeutral;
   };
 
+  useFocusEffect(
+    React.useCallback(() => {
+      const highlightDate = route.params?.highlightDate;
+      if (highlightDate) {
+        setFilter('all');
+        setActiveHighlight({
+          date: highlightDate,
+          type: route.params?.highlightType || null,
+          requestId: route.params?.highlightRequestId || Date.now(),
+        });
+        navigation.setParams({
+          highlightDate: undefined,
+          highlightType: undefined,
+          highlightRequestId: undefined,
+        });
+      }
+    }, [
+      navigation,
+      route.params?.highlightDate,
+      route.params?.highlightType,
+      route.params?.highlightRequestId,
+    ])
+  );
+
   const filteredRecords = getFilteredRecords();
+  const highlightRecordIds = useMemo(() => {
+    if (!activeHighlight?.date) return [];
+    return filteredRecords
+      .filter((record) => {
+        const matchesDate = getDayKey(record.date) === activeHighlight.date;
+        const matchesType =
+          !activeHighlight.type || getActivityType(record) === activeHighlight.type;
+        return matchesDate && matchesType;
+      })
+      .map((record) => record.id);
+  }, [activeHighlight, filteredRecords]);
+
+  useEffect(() => {
+    if (!highlightRecordIds.length) return;
+    const firstMatchId = highlightRecordIds[0];
+    const y = cardPositionsRef.current[firstMatchId];
+    if (typeof y === 'number' && scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({ y: Math.max(y - 24, 0), animated: true });
+    }
+  }, [highlightRecordIds]);
+
   const previousRecord = getPreviousRecord(selectedRecord);
 
   return (
@@ -132,6 +197,7 @@ export default function HistoryScreen() {
         <Text style={styles.headerSubtitle}>All your sessions</Text>
       </View>
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
@@ -170,6 +236,22 @@ export default function HistoryScreen() {
         </View>
 
         <View style={styles.historySection}>
+          {!!activeHighlight?.date && (
+            <View style={styles.highlightBanner}>
+              <Text style={styles.highlightBannerText}>
+                Highlighting {
+                  activeHighlight.type === 'walk'
+                    ? 'walk'
+                    : activeHighlight.type === 'indoor'
+                      ? 'indoor'
+                      : 'all'
+                } sessions on {formatDayKey(activeHighlight.date)}
+              </Text>
+              <TouchableOpacity onPress={() => setActiveHighlight(null)}>
+                <Text style={styles.highlightBannerAction}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           <Text style={styles.sectionTitle}>
             All Sessions ({filteredRecords.length})
           </Text>
@@ -184,7 +266,13 @@ export default function HistoryScreen() {
               {filteredRecords.map((record) => (
                 <View
                   key={record.id}
-                  style={styles.modernCard}
+                  onLayout={(event) => {
+                    cardPositionsRef.current[record.id] = event.nativeEvent.layout.y;
+                  }}
+                  style={[
+                    styles.modernCard,
+                    highlightRecordIds.includes(record.id) && styles.modernCardHighlighted,
+                  ]}
                 >
                   <View style={styles.horizontalCardContent}>
                     <View style={styles.horizontalCardInfo}>
@@ -403,12 +491,43 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     paddingHorizontal: 24,
   },
+  highlightBanner: {
+    backgroundColor: '#1E293B',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  highlightBannerText: {
+    color: '#E2E8F0',
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
+  },
+  highlightBannerAction: {
+    color: '#60A5FA',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   cardsContainer: {
     gap: 12,
   },
   modernCard: {
     backgroundColor: '#040404',
     borderRadius: 13,
+  },
+  modernCardHighlighted: {
+    borderWidth: 2,
+    borderColor: '#3B82F6',
+    shadowColor: '#3B82F6',
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
   },
   horizontalCardContent: {
     flexDirection: 'row',
