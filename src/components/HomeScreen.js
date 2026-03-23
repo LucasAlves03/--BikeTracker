@@ -8,20 +8,59 @@ import {
   Modal,
   TouchableOpacity,
   TextInput,
+  ImageBackground,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ProgressChart } from 'react-native-chart-kit';
 import { LinearGradient } from 'expo-linear-gradient';
-import LottieView from 'lottie-react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { BikeContext } from '../context/BikeContext';
 import NotificationBell from './NotificationBell';
 import { NotificationService } from '../utils/NotificationService';
+import WeeklyGoalsSetupModal from './WeeklyGoalsSetupModal';
 
 
 
 const { width } = Dimensions.get('window');
+const FORCE_SHOW_WEEKLY_GOALS_PREVIEW = true;
+const WEEKLY_GOALS_KEY = 'weeklyGoalsByType';
+const DEFAULT_WEEKLY_GOALS = {
+  indoor: {
+    distance: 80,
+    time: 300,
+    calories: 1125,
+    steps: 0,
+  },
+  walk: {
+    distance: 20,
+    time: 240,
+    calories: 800,
+    steps: 45000,
+  },
+};
+const ACTIVITY_HEADER_IMAGES = {
+  indoor: require('../../assets/header_indoor.png'),
+  walk: require('../../assets/header_walk.png'),
+};
+
+const parseDecimalValue = (value) => {
+  if (value === null || value === undefined || value === '') return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const normalized = String(value).trim().replace(',', '.');
+  const parsed = parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const parseStepsValue = (value) => {
+  if (value === null || value === undefined || value === '') return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? Math.round(value) : 0;
+  const digits = String(value).replace(/[^\d]/g, '');
+  if (!digits) return 0;
+  return parseInt(digits, 10);
+};
+
+const formatIntegerPtBr = (value) => new Intl.NumberFormat('pt-BR').format(Math.round(value || 0));
 
 export default function HomeScreen() {
   const USER_NAME_KEY = 'userName';
@@ -32,11 +71,13 @@ export default function HomeScreen() {
   const [nameInput, setNameInput] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(0);
+  const [showGoalsSetup, setShowGoalsSetup] = useState(false);
   const [weeklyStatsByType, setWeeklyStatsByType] = useState({
     indoor: {
       totalDistance: 0,
       totalTime: 0,
       totalCalories: 0,
+      totalSteps: 0,
       averageSpeed: 0,
       sessionsCount: 0,
     },
@@ -44,22 +85,12 @@ export default function HomeScreen() {
       totalDistance: 0,
       totalTime: 0,
       totalCalories: 0,
+      totalSteps: 0,
       averageSpeed: 0,
       sessionsCount: 0,
     },
   });
-  const [weeklyGoalsByType, setWeeklyGoalsByType] = useState({
-    indoor: {
-      distance: 80,
-      time: 300,
-      calories: 1125,
-    },
-    walk: {
-      distance: 20,
-      time: 240,
-      calories: 800,
-    },
-  });
+  const [weeklyGoalsByType, setWeeklyGoalsByType] = useState(DEFAULT_WEEKLY_GOALS);
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationType, setCelebrationType] = useState('indoor');
   const [goalsCompletedByType, setGoalsCompletedByType] = useState({
@@ -72,12 +103,22 @@ export default function HomeScreen() {
     React.useCallback(() => {
       loadData();
       checkWeekReset();
+      if (FORCE_SHOW_WEEKLY_GOALS_PREVIEW) {
+        setCelebrationType('indoor');
+        setShowCelebration(true);
+      }
     }, [refreshTrigger])
   );
 
   useEffect(() => {
     loadUserName();
+    loadWeeklyGoals();
   }, []);
+
+  useEffect(() => {
+    if (!records.length) return;
+    calculateWeeklyStats(records);
+  }, [weeklyGoalsByType]);
 
   const getGreetingForHour = (hour) => {
     if (hour >= 5 && hour < 12) return 'Bom dia';
@@ -108,6 +149,39 @@ export default function HomeScreen() {
       setIsEditingName(false);
     } catch (error) {
       console.error('Error saving user name:', error);
+    }
+  };
+
+  const loadWeeklyGoals = async () => {
+    try {
+      const savedGoals = await AsyncStorage.getItem(WEEKLY_GOALS_KEY);
+      if (!savedGoals) return;
+
+      const parsedGoals = JSON.parse(savedGoals);
+      setWeeklyGoalsByType({
+        indoor: {
+          ...DEFAULT_WEEKLY_GOALS.indoor,
+          ...(parsedGoals?.indoor || {}),
+        },
+        walk: {
+          ...DEFAULT_WEEKLY_GOALS.walk,
+          ...(parsedGoals?.walk || {}),
+          steps: parseStepsValue(parsedGoals?.walk?.steps ?? DEFAULT_WEEKLY_GOALS.walk.steps),
+        },
+      });
+    } catch (error) {
+      console.error('Error loading weekly goals:', error);
+    }
+  };
+
+  const saveWeeklyGoals = async (nextGoals) => {
+    try {
+      setWeeklyGoalsByType(nextGoals);
+      await AsyncStorage.setItem(WEEKLY_GOALS_KEY, JSON.stringify(nextGoals));
+      setShowGoalsSetup(false);
+      await calculateWeeklyStats(records, nextGoals);
+    } catch (error) {
+      console.error('Error saving weekly goals:', error);
     }
   };
 
@@ -182,7 +256,7 @@ export default function HomeScreen() {
     }
   };
 
-  const calculateWeeklyStats = async (allRecords) => {
+  const calculateWeeklyStats = async (allRecords, goalsByType = weeklyGoalsByType) => {
     const monday = getMondayOfWeek();
     const sunday = getSundayOfWeek();
 
@@ -197,15 +271,17 @@ export default function HomeScreen() {
     };
 
     const buildStats = (typeRecords) => {
-      const totalDistance = typeRecords.reduce((sum, r) => sum + parseFloat(r.distance || 0), 0);
-      const totalTime = typeRecords.reduce((sum, r) => sum + parseFloat(r.time || 0), 0);
-      const totalCalories = typeRecords.reduce((sum, r) => sum + parseFloat(r.calories || 0), 0);
-      const totalSpeed = typeRecords.reduce((sum, r) => sum + parseFloat(r.speed || 0), 0);
+      const totalDistance = typeRecords.reduce((sum, r) => sum + parseDecimalValue(r.distance), 0);
+      const totalTime = typeRecords.reduce((sum, r) => sum + parseDecimalValue(r.time), 0);
+      const totalCalories = typeRecords.reduce((sum, r) => sum + parseDecimalValue(r.calories), 0);
+      const totalSteps = typeRecords.reduce((sum, r) => sum + parseStepsValue(r.steps), 0);
+      const totalSpeed = typeRecords.reduce((sum, r) => sum + parseDecimalValue(r.speed), 0);
 
       return {
         totalDistance: totalDistance.toFixed(1),
         totalTime: Math.round(totalTime),
         totalCalories: Math.round(totalCalories),
+        totalSteps: Math.round(totalSteps),
         averageSpeed: typeRecords.length > 0 ? (totalSpeed / typeRecords.length).toFixed(1) : 0,
         sessionsCount: typeRecords.length,
       };
@@ -218,17 +294,18 @@ export default function HomeScreen() {
 
     setWeeklyStatsByType(nextWeeklyStatsByType);
 
-    await checkGoalsCompletion('indoor', nextWeeklyStatsByType.indoor);
-    await checkGoalsCompletion('walk', nextWeeklyStatsByType.walk);
+    await checkGoalsCompletion('indoor', nextWeeklyStatsByType.indoor, goalsByType);
+    await checkGoalsCompletion('walk', nextWeeklyStatsByType.walk, goalsByType);
   };
 
-  const checkGoalsCompletion = async (type, stats) => {
-    const goals = weeklyGoalsByType[type];
+  const checkGoalsCompletion = async (type, stats, goalsByType = weeklyGoalsByType) => {
+    const goals = goalsByType[type];
     const completed = goalsCompletedByType[type];
     const allGoalsCompleted = 
-      parseFloat(stats.totalDistance) >= goals.distance &&
-      parseFloat(stats.totalTime) >= goals.time &&
-      parseFloat(stats.totalCalories) >= goals.calories;
+      parseDecimalValue(stats.totalDistance) >= parseDecimalValue(goals.distance) &&
+      parseDecimalValue(stats.totalTime) >= parseDecimalValue(goals.time) &&
+      parseDecimalValue(stats.totalCalories) >= parseDecimalValue(goals.calories) &&
+      (type !== 'walk' || parseStepsValue(stats.totalSteps) >= parseStepsValue(goals.steps || 0));
 
     if (allGoalsCompleted && !completed) {
       setShowCelebration(true);
@@ -245,14 +322,19 @@ export default function HomeScreen() {
   const getProgressData = () => {
     const stats = weeklyStatsByType[activeTracker];
     const goals = weeklyGoalsByType[activeTracker];
-    return {
-      labels: ['Distância', 'Tempo', 'Calorias'],
-      data: [
-        Math.min(parseFloat(stats.totalDistance) / goals.distance, 1),
-        Math.min(parseFloat(stats.totalTime) / goals.time, 1),
-        Math.min(parseFloat(stats.totalCalories) / goals.calories, 1),
-      ],
+    const safeProgress = (current, goal) => {
+      const goalNumber = parseDecimalValue(goal);
+      if (goalNumber <= 0) return 0;
+      return Math.min(parseDecimalValue(current) / goalNumber, 1);
     };
+    const labels = ['Distancia', 'Tempo', 'Calorias'];
+    const data = [
+      safeProgress(stats.totalDistance, goals.distance),
+      safeProgress(stats.totalTime, goals.time),
+      safeProgress(stats.totalCalories, goals.calories),
+    ];
+
+    return { labels, data };
   };
 
   const getStreak = () => {
@@ -279,7 +361,10 @@ export default function HomeScreen() {
   };
 
   const getProgressPercentage = (current, goal) => {
-    return Math.min(Math.round((current / goal) * 100), 100);
+    const currentValue = parseDecimalValue(current);
+    const goalValue = parseDecimalValue(goal);
+    if (!goalValue || goalValue <= 0) return 0;
+    return Math.min(Math.round((currentValue / goalValue) * 100), 100);
   };
 
   const formatDate = (date) => {
@@ -294,6 +379,41 @@ export default function HomeScreen() {
   const activeWeeklyStats = weeklyStatsByType[activeTracker];
   const activeWeeklyGoals = weeklyGoalsByType[activeTracker];
   const celebrationStats = weeklyStatsByType[celebrationType];
+  const celebrationGoals = weeklyGoalsByType[celebrationType];
+  const goalMetricCards = [
+    {
+      key: 'distance',
+      label: 'Distancia',
+      value: `${celebrationStats.totalDistance} km`,
+      target: `${celebrationGoals.distance} km`,
+      progress: getProgressPercentage(celebrationStats.totalDistance, celebrationGoals.distance),
+      icon: 'map-outline',
+    },
+    {
+      key: 'time',
+      label: 'Tempo',
+      value: `${celebrationStats.totalTime} min`,
+      target: `${celebrationGoals.time} min`,
+      progress: getProgressPercentage(celebrationStats.totalTime, celebrationGoals.time),
+      icon: 'time-outline',
+    },
+    {
+      key: 'calories',
+      label: 'Calorias',
+      value: `${celebrationStats.totalCalories} kcal`,
+      target: `${celebrationGoals.calories} kcal`,
+      progress: getProgressPercentage(celebrationStats.totalCalories, celebrationGoals.calories),
+      icon: 'flame-outline',
+    },
+    {
+      key: 'averageSpeed',
+      label: 'Vel. media',
+      value: `${celebrationStats.averageSpeed} km/h`,
+      target: 'Ritmo da semana',
+      progress: parseFloat(celebrationStats.averageSpeed || 0) > 0 ? 100 : 0,
+      icon: 'speedometer-outline',
+    },
+  ];
 
   return (
     <View style={styles.container}>
@@ -348,62 +468,89 @@ export default function HomeScreen() {
       ]}
       showsVerticalScrollIndicator={false}
     >
+
       <Modal
         visible={showCelebration}
         transparent={true}
         animationType="fade"
         onRequestClose={() => setShowCelebration(false)}
       >
-        <View style={styles.modalOverlay}>
-          <LinearGradient
-            colors={[ '#122640', '#122640']}
-            style={styles.celebrationCard}
-          >
-            <View style={styles.ContainerHandle}>
-            <Text style={styles.celebrationTitle}>Parabéns!</Text>
-            <Text style={styles.celebrationText}>
-              Você completou todas as metas da semana!
-            </Text>
-            
-            <LottieView
-              source={require('../../assets/Animations/cycle.json')}
-              autoPlay
-              loop
-              style={styles.lottieAnimation}
-            />
-            <Text style={styles.resultText}>
-              Seus resultados nesta semana ({getTrackerLabel(celebrationType)})
-            </Text>
-
-            <View style={styles.modalStatsGrid}>
-              <View style={styles.modalStatCard}>
-                <Text style={styles.modalStatValue}>{celebrationStats.totalTime}</Text>
-                <Text style={styles.modalStatLabel}>minutos</Text>
-              </View>
-              <View style={styles.modalStatCard}>
-                <Text style={styles.modalStatValue}>{celebrationStats.averageSpeed}</Text>
-                <Text style={styles.modalStatLabel}>vel. média</Text>
-              </View>
-              <View style={styles.modalStatCard}>
-                <Text style={styles.modalStatValue}>{celebrationStats.totalCalories}</Text>
-                <Text style={styles.modalStatLabel}>calorias</Text>
-              </View>
-              <View style={styles.modalStatCard}>
-                <Text style={styles.modalStatValue}>{celebrationStats.totalDistance}</Text>
-                <Text style={styles.modalStatLabel}>Distância</Text>
-              </View>
-            </View>
-            
-            <TouchableOpacity 
-              style={styles.celebrationButton}
-              onPress={() => setShowCelebration(false)}
+        <View style={styles.goalModalOverlay}>
+          <View style={styles.goalModalCard}>
+            <ImageBackground
+              source={ACTIVITY_HEADER_IMAGES[celebrationType]}
+              style={styles.goalHeaderImage}
+              imageStyle={styles.goalHeaderImageStyle}
+              resizeMode="cover"
             >
-              <Text style={styles.celebrationButtonText}>Continuar</Text>
-            </TouchableOpacity>
-            </View>
-          </LinearGradient>
+              <View style={styles.goalHeaderOverlay}>
+                <View style={styles.goalBadge}>
+                  <Ionicons name="trophy-outline" size={14} color="#FCD34D" />
+                  <Text style={styles.goalBadgeText}>Meta Semanal Concluida</Text>
+                </View>
+                <Text style={styles.goalHeaderTitle}>{getTrackerLabel(celebrationType)}</Text>
+                <Text style={styles.goalHeaderSubtitle}>
+                  Voce bateu todas as metas desta semana.
+                </Text>
+              </View>
+            </ImageBackground>
+
+            <ScrollView
+              style={styles.goalBodyScroll}
+              contentContainerStyle={styles.goalBody}
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.goalSectionTitle}>Resumo da Semana</Text>
+              <View style={styles.goalMetricsGrid}>
+                {goalMetricCards.map((card) => (
+                  <View key={card.key} style={styles.goalMetricCard}>
+                    <View style={styles.goalMetricHeader}>
+                      <Ionicons name={card.icon} size={28} color="#E2E8F0" />
+                      <Text style={styles.goalMetricLabel}>{card.label}</Text>
+                    </View>
+                    <Text style={styles.goalMetricValue}>{card.value}</Text>
+                    <Text style={styles.goalMetricTarget}>Meta: {card.target}</Text>
+                    <View style={styles.goalMetricTrack}>
+                      <View
+                        style={[
+                          styles.goalMetricFill,
+                          { width: `${Math.min(card.progress, 100)}%` },
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.goalMetricPercent}>{card.progress}%</Text>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.goalActions}>
+                <TouchableOpacity
+                  style={styles.goalGhostButton}
+                  onPress={() =>
+                    setCelebrationType((prev) => (prev === 'indoor' ? 'walk' : 'indoor'))
+                  }
+                >
+                  <Text style={styles.goalGhostButtonText}>Trocar tipo</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.goalPrimaryButton}
+                  onPress={() => setShowCelebration(false)}
+                >
+                  <Text style={styles.goalPrimaryButtonText}>Continuar</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
         </View>
       </Modal>
+
+      <WeeklyGoalsSetupModal
+        visible={showGoalsSetup}
+        onClose={() => setShowGoalsSetup(false)}
+        onSave={saveWeeklyGoals}
+        goalsByType={weeklyGoalsByType}
+        statsByType={weeklyStatsByType}
+      />
 
       <View style={styles.trackerToggle}>
         {['indoor', 'walk'].map((type) => {
@@ -423,7 +570,17 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.progressSection}>
-        <Text style={styles.sectionTitle}>Metas Semanais ({getTrackerLabel(activeTracker)})</Text>
+        <View style={styles.sectionTitleRow}>
+          
+          <Text style={styles.sectionTitleCompact}>Metas Semanais</Text>
+          <TouchableOpacity
+            style={styles.editGoalsButton}
+            onPress={() => setShowGoalsSetup(true)}
+          >
+            <Ionicons name="options-outline" size={14} color="#E2E8F0" />
+            <Text style={styles.editGoalsButtonText}>Ajustar</Text>
+          </TouchableOpacity>
+        </View>
         <View style={styles.glassCard}>
           <LinearGradient
             colors={['rgba(30, 41, 59, 0.6)', 'rgba(15, 23, 42, 0.6)']}
@@ -457,7 +614,7 @@ export default function HomeScreen() {
                 />
                 <View style={styles.progressCenter}>
                   <Text style={styles.progressCenterValue}>
-                    {Math.round((getProgressData().data.reduce((a, b) => a + b, 0) / 3) * 100)}%
+                    {Math.round((getProgressData().data.reduce((a, b) => a + b, 0) / getProgressData().data.length) * 100)}%
                   </Text>
                   <Text style={styles.progressCenterLabel}>Concluído</Text>
                 </View>
@@ -539,6 +696,33 @@ export default function HomeScreen() {
                     </View>
                   </View>
                 </View>
+
+                {activeTracker === 'walk' && parseStepsValue(activeWeeklyGoals.steps || 0) > 0 && (
+                  <View style={styles.legendRow}>
+                    <View style={styles.legendItemHeader}>
+                      <Text style={styles.legendLabel}>Passos</Text>
+                      <Text style={styles.legendPercent}>
+                        {getProgressPercentage(parseStepsValue(activeWeeklyStats.totalSteps), parseStepsValue(activeWeeklyGoals.steps))}%
+                      </Text>
+                    </View>
+                    <Text style={styles.legendValue}>
+                      {formatIntegerPtBr(parseStepsValue(activeWeeklyStats.totalSteps))}/{formatIntegerPtBr(parseStepsValue(activeWeeklyGoals.steps))}
+                    </Text>
+                    <View style={styles.progressBarContainer}>
+                      <View style={[styles.progressBarBackground, { backgroundColor: 'rgba(148, 163, 184, 0.2)' }]}>
+                        <View
+                          style={[
+                            styles.progressBarFill,
+                            {
+                              width: `${Math.min(getProgressPercentage(parseStepsValue(activeWeeklyStats.totalSteps), parseStepsValue(activeWeeklyGoals.steps)), 100)}%`,
+                              backgroundColor: '#38BDF8',
+                            },
+                          ]}
+                        />
+                      </View>
+                    </View>
+                  </View>
+                )}
               </View>
             </View>
           </LinearGradient>
@@ -680,6 +864,35 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginBottom: 16,
     paddingHorizontal: 24,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingBottom: 10,
+    gap: 120,
+  },
+  sectionTitleCompact: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  editGoalsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: '#334155',
+    backgroundColor: '#020617',
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  editGoalsButtonText: {
+    color: '#E2E8F0',
+    fontSize: 12,
+    fontWeight: '700',
   },
   progressChartContainer: {
     alignItems: 'center',
@@ -874,4 +1087,170 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textAlign: 'center',
   },
+  goalModalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-start',
+    alignItems: 'stretch',
+    backgroundColor: 'rgba(0, 0, 0, 0.82)',
+  },
+  goalModalCard: {
+    flex: 1,
+    width: '100%',
+    borderRadius: 0,
+    backgroundColor: '#050505',
+    overflow: 'hidden',
+  },
+  goalHeaderImage: {
+    height: 340,
+    justifyContent: 'flex-end',
+  },
+  goalHeaderImageStyle: {
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+  },
+  goalHeaderOverlay: {
+    paddingHorizontal: 18,
+    paddingBottom: 6,
+    paddingTop: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.62)',
+  },
+  goalBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#3F3F46',
+    backgroundColor: 'rgba(10, 10, 10, 0.75)',
+    marginBottom: 10,
+  },
+  goalBadgeText: {
+    fontSize: 12,
+    color: '#F8FAFC',
+    fontWeight: '700',
+  },
+  goalHeaderTitle: {
+    fontSize: 28,
+    lineHeight: 32,
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  goalHeaderSubtitle: {
+    marginTop: 6,
+    fontSize: 13,
+    color: '#CBD5E1',
+  },
+  goalBody: {
+    backgroundColor: '#050505',
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 12,
+    gap: 8,
+  },
+  goalBodyScroll: {
+    flex: 1,
+    backgroundColor: '#050505',
+  },
+  goalSectionTitle: {
+    marginTop: 0,
+    marginBottom: 1,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#F8FAFC',
+  },
+  goalMetricsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 10,
+    columnGap: 10,
+  },
+  goalMetricCard: {
+    width: '47%',
+    aspectRatio: 1,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    backgroundColor: '#0B0B0B',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    justifyContent: 'space-between',
+  },
+  goalMetricHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  goalMetricLabel: {
+    fontSize: 12,
+    color: '#CBD5E1',
+    fontWeight: '600',
+  },
+  goalMetricValue: {
+    fontSize: 18,
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  goalMetricTarget: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#94A3B8',
+  },
+  goalMetricTrack: {
+    marginTop: 8,
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: '#1F2937',
+    overflow: 'hidden',
+  },
+  goalMetricFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: '#22D3EE',
+  },
+  goalMetricPercent: {
+    marginTop: 6,
+    fontSize: 12,
+    color: '#BAE6FD',
+    fontWeight: '700',
+  },
+  goalActions: {
+    marginTop: 4,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  goalGhostButton: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#334155',
+    backgroundColor: '#111111',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  goalGhostButtonText: {
+    color: '#CBD5E1',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  goalPrimaryButton: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 10,
+    backgroundColor: '#22D3EE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  goalPrimaryButtonText: {
+    color: '#03111A',
+    fontWeight: '800',
+    fontSize: 14,
+  },
 });
+
+
