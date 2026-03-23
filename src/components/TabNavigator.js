@@ -42,7 +42,7 @@ export default function TabNavigator() {
         component={HomeScreen}
         options={{
           tabBarIcon: ({ focused, color, size }) => <HomeIcon focused={focused} />,
-    tabBarLabel: 'Home',
+    tabBarLabel: 'Início',
         }}
       />
       <Tab.Screen
@@ -50,7 +50,7 @@ export default function TabNavigator() {
         component={AddExerciseScreen}
         options={{
           tabBarIcon: ({ focused, color, size }) => <AddIcon focused={focused} />,
-      tabBarLabel: 'Add Exercise',
+      tabBarLabel: 'Adicionar',
         }}
       />
       <Tab.Screen
@@ -58,7 +58,7 @@ export default function TabNavigator() {
         component={StatisticsScreen}
         options={{
           tabBarIcon: ({ focused, color, size }) => <StatisticsIcon focused={focused} />,
-    tabBarLabel: 'Statistics',
+    tabBarLabel: 'Estatísticas',
         }}
       />
       <Tab.Screen
@@ -66,7 +66,7 @@ export default function TabNavigator() {
         component={HistoryScreen}
         options={{
           tabBarIcon: ({ focused, color, size }) => <HistoryIcon focused={focused} />,
-    tabBarLabel: 'History',
+    tabBarLabel: 'Histórico',
         }}
       />
    

@@ -7,12 +7,14 @@ import {
   Dimensions,
   Modal,
   TouchableOpacity,
+  TextInput,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ProgressChart } from 'react-native-chart-kit';
 import { LinearGradient } from 'expo-linear-gradient';
 import LottieView from 'lottie-react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { BikeContext } from '../context/BikeContext';
 import NotificationBell from './NotificationBell';
 import { NotificationService } from '../utils/NotificationService';
@@ -22,9 +24,13 @@ import { NotificationService } from '../utils/NotificationService';
 const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
+  const USER_NAME_KEY = 'userName';
   const [records, setRecords] = useState([]);
   const [activeTracker, setActiveTracker] = useState('indoor');
-  const [greeting, setGreeting] = useState('Dashboard');
+  const [greeting, setGreeting] = useState('Painel');
+  const [userName, setUserName] = useState('');
+  const [nameInput, setNameInput] = useState('');
+  const [isEditingName, setIsEditingName] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(0);
   const [weeklyStatsByType, setWeeklyStatsByType] = useState({
     indoor: {
@@ -69,10 +75,40 @@ export default function HomeScreen() {
     }, [refreshTrigger])
   );
 
+  useEffect(() => {
+    loadUserName();
+  }, []);
+
   const getGreetingForHour = (hour) => {
-    if (hour >= 5 && hour < 12) return 'Good Morning';
-    if (hour >= 12 && hour < 18) return 'Good Afternoon';
-    return 'Good Evening';
+    if (hour >= 5 && hour < 12) return 'Bom dia';
+    if (hour >= 12 && hour < 18) return 'Boa tarde';
+    return 'Boa noite';
+  };
+
+  const loadUserName = async () => {
+    try {
+      const savedName = await AsyncStorage.getItem(USER_NAME_KEY);
+      const trimmedName = savedName?.trim();
+
+      if (trimmedName) {
+        setUserName(trimmedName);
+        setNameInput(trimmedName);
+      }
+    } catch (error) {
+      console.error('Error loading user name:', error);
+    }
+  };
+
+  const saveUserName = async () => {
+    const trimmedName = nameInput.trim();
+
+    try {
+      await AsyncStorage.setItem(USER_NAME_KEY, trimmedName);
+      setUserName(trimmedName);
+      setIsEditingName(false);
+    } catch (error) {
+      console.error('Error saving user name:', error);
+    }
   };
 
   useEffect(() => {
@@ -210,7 +246,7 @@ export default function HomeScreen() {
     const stats = weeklyStatsByType[activeTracker];
     const goals = weeklyGoalsByType[activeTracker];
     return {
-      labels: ['Dist??ncia', 'Tempo', 'Calorias'],
+      labels: ['Distância', 'Tempo', 'Calorias'],
       data: [
         Math.min(parseFloat(stats.totalDistance) / goals.distance, 1),
         Math.min(parseFloat(stats.totalTime) / goals.time, 1),
@@ -248,10 +284,10 @@ export default function HomeScreen() {
 
   const formatDate = (date) => {
     const options = { weekday: 'long', day: 'numeric', month: 'long' };
-    return new Date(date).toLocaleDateString('en-US', options);
+    return new Date(date).toLocaleDateString('pt-BR', options);
   };
 
-  const getTrackerLabel = (type) => (type === 'walk' ? 'Walk' : 'Indoor');
+  const getTrackerLabel = (type) => (type === 'walk' ? 'Caminhada' : 'Bic. Ergométrica');
 
   const combinedWeeklySessions = weeklyStatsByType.indoor.sessionsCount + weeklyStatsByType.walk.sessionsCount;
   const totalSessionsAll = records.length;
@@ -266,7 +302,39 @@ export default function HomeScreen() {
         onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}
       >
         <View>
-          <Text style={styles.headerTitle}>{greeting}</Text>
+          <View style={styles.greetingRow}>
+            <Text style={styles.headerTitle}>{greeting}{!isEditingName && userName ? ',' : ''}</Text>
+            {isEditingName ? (
+              <TextInput
+                value={nameInput}
+                onChangeText={setNameInput}
+                placeholder="Seu nome"
+                placeholderTextColor="#94A3B8"
+                style={styles.inlineNameInput}
+                maxLength={24}
+                autoCapitalize="words"
+              />
+            ) : (
+              <Text style={styles.headerNameText}>{userName || 'Seu nome'}</Text>
+            )}
+            <TouchableOpacity
+              style={styles.editNameButton}
+              onPress={() => {
+                if (isEditingName) {
+                  saveUserName();
+                } else {
+                  setNameInput(userName);
+                  setIsEditingName(true);
+                }
+              }}
+            >
+              <Ionicons
+                name={isEditingName ? 'checkmark' : 'create-outline'}
+                size={18}
+                color="#E2E8F0"
+              />
+            </TouchableOpacity>
+          </View>
           <Text style={styles.headerSubtitle}>{formatDate(new Date())}</Text>
         </View>
         <NotificationBell/>
@@ -292,9 +360,9 @@ export default function HomeScreen() {
             style={styles.celebrationCard}
           >
             <View style={styles.ContainerHandle}>
-            <Text style={styles.celebrationTitle}>Congratulations!</Text>
+            <Text style={styles.celebrationTitle}>Parabéns!</Text>
             <Text style={styles.celebrationText}>
-              You completed all your weekly goals!
+              Você completou todas as metas da semana!
             </Text>
             
             <LottieView
@@ -304,25 +372,25 @@ export default function HomeScreen() {
               style={styles.lottieAnimation}
             />
             <Text style={styles.resultText}>
-              Your results this week ({getTrackerLabel(celebrationType)})
+              Seus resultados nesta semana ({getTrackerLabel(celebrationType)})
             </Text>
 
             <View style={styles.modalStatsGrid}>
               <View style={styles.modalStatCard}>
                 <Text style={styles.modalStatValue}>{celebrationStats.totalTime}</Text>
-                <Text style={styles.modalStatLabel}>minutes</Text>
+                <Text style={styles.modalStatLabel}>minutos</Text>
               </View>
               <View style={styles.modalStatCard}>
                 <Text style={styles.modalStatValue}>{celebrationStats.averageSpeed}</Text>
-                <Text style={styles.modalStatLabel}>avg speed</Text>
+                <Text style={styles.modalStatLabel}>vel. média</Text>
               </View>
               <View style={styles.modalStatCard}>
                 <Text style={styles.modalStatValue}>{celebrationStats.totalCalories}</Text>
-                <Text style={styles.modalStatLabel}>calories</Text>
+                <Text style={styles.modalStatLabel}>calorias</Text>
               </View>
               <View style={styles.modalStatCard}>
                 <Text style={styles.modalStatValue}>{celebrationStats.totalDistance}</Text>
-                <Text style={styles.modalStatLabel}>Distance</Text>
+                <Text style={styles.modalStatLabel}>Distância</Text>
               </View>
             </View>
             
@@ -355,7 +423,7 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.progressSection}>
-        <Text style={styles.sectionTitle}>Weekly Goals ({getTrackerLabel(activeTracker)})</Text>
+        <Text style={styles.sectionTitle}>Metas Semanais ({getTrackerLabel(activeTracker)})</Text>
         <View style={styles.glassCard}>
           <LinearGradient
             colors={['rgba(30, 41, 59, 0.6)', 'rgba(15, 23, 42, 0.6)']}
@@ -391,14 +459,14 @@ export default function HomeScreen() {
                   <Text style={styles.progressCenterValue}>
                     {Math.round((getProgressData().data.reduce((a, b) => a + b, 0) / 3) * 100)}%
                   </Text>
-                  <Text style={styles.progressCenterLabel}>Complete</Text>
+                  <Text style={styles.progressCenterLabel}>Concluído</Text>
                 </View>
               </View>
               
               <View style={styles.progressLegend}>
                 <View style={styles.legendRow}>
                   <View style={styles.legendItemHeader}>
-                    <Text style={styles.legendLabel}>Distance</Text>
+                    <Text style={styles.legendLabel}>Distância</Text>
                     <Text style={styles.legendPercent}>
                       {getProgressPercentage(activeWeeklyStats.totalDistance, activeWeeklyGoals.distance)}%
                     </Text>
@@ -424,7 +492,7 @@ export default function HomeScreen() {
                 {/* Time */}
                 <View style={styles.legendRow}>
                   <View style={styles.legendItemHeader}>
-                    <Text style={styles.legendLabel}>Time</Text>
+                    <Text style={styles.legendLabel}>Tempo</Text>
                     <Text style={styles.legendPercent}>
                       {getProgressPercentage(activeWeeklyStats.totalTime, activeWeeklyGoals.time)}%
                     </Text>
@@ -449,7 +517,7 @@ export default function HomeScreen() {
 
                 <View style={styles.legendRow}>
                   <View style={styles.legendItemHeader}>
-                    <Text style={styles.legendLabel}>Calories</Text>
+                    <Text style={styles.legendLabel}>Calorias</Text>
                     <Text style={styles.legendPercent}>
                       {getProgressPercentage(activeWeeklyStats.totalCalories, activeWeeklyGoals.calories)}%
                     </Text>
@@ -479,10 +547,10 @@ export default function HomeScreen() {
 
       <View style={styles.statsGrid}>
         {[
-          { value: combinedWeeklySessions, label: 'Sessions', subtitle: 'This Week' },
-          { value: activeWeeklyStats.averageSpeed, label: 'Avg Speed', subtitle: 'Km/h' },
-          { value: getStreak(), label: 'Streak', subtitle: 'Days' },
-          { value: totalSessionsAll, label: 'Total', subtitle: 'Sessions' },
+          { value: combinedWeeklySessions, label: 'Sessões', subtitle: 'Nesta Semana' },
+          { value: activeWeeklyStats.averageSpeed, label: 'Vel. Média', subtitle: 'Km/h' },
+          { value: getStreak(), label: 'Sequência', subtitle: 'Dias' },
+          { value: totalSessionsAll, label: 'Total', subtitle: 'Sessões' },
         ].map((stat, index) => (
           <View key={index} style={styles.glassStatCard}>
             <View style={styles.statGradient}>
@@ -559,6 +627,30 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#94A3B8',
     textTransform: 'capitalize',
+  },
+  greetingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerNameText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#E2E8F0',
+  },
+  inlineNameInput: {
+    minWidth: 90,
+    maxWidth: 150,
+    borderBottomWidth: 1,
+    borderBottomColor: '#64748B',
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '700',
+    paddingVertical: 0,
+    paddingHorizontal: 2,
+  },
+  editNameButton: {
+    padding: 6,
   },
   glassCard: {
     marginHorizontal: 24,

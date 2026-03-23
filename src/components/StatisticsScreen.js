@@ -12,10 +12,10 @@ import { LineChart } from 'react-native-gifted-charts';
 import { BikeContext } from '../context/BikeContext';
 
 const PERFORMANCE_METRICS = [
-  { key: 'distance', label: 'Best Distance', unit: 'km' },
-  { key: 'time', label: 'Best Time', unit: 'min' },
-  { key: 'calories', label: 'Best Calories', unit: 'kcal' },
-  { key: 'speed', label: 'Best Speed', unit: 'km/h' },
+  { key: 'distance', label: 'Melhor Distância', unit: 'km' },
+  { key: 'time', label: 'Melhor Tempo', unit: 'min' },
+  { key: 'calories', label: 'Melhores Calorias', unit: 'kcal' },
+  { key: 'speed', label: 'Melhor Velocidade', unit: 'km/h' },
 ];
 
 const ACTIVITY_COLORS = {
@@ -33,17 +33,17 @@ const hexToRgba = (hex, alpha) => {
 };
 
 const COMPARE_OPTIONS = [
-  { key: 'distance', label: 'Distance (km)' },
-  { key: 'time', label: 'Time (min)' },
-  { key: 'calories', label: 'Calories' },
-  { key: 'speed', label: 'Speed (km/h)' },
+  { key: 'distance', label: 'Distância (km)' },
+  { key: 'time', label: 'Tempo (min)' },
+  { key: 'calories', label: 'Calorias' },
+  { key: 'speed', label: 'Velocidade (km/h)' },
 ];
 
 const SESSION_COMPARISON_METRICS = [
-  { key: 'distance', label: 'Distance', unit: 'km' },
-  { key: 'time', label: 'Time', unit: 'min' },
-  { key: 'calories', label: 'Calories', unit: 'kcal' },
-  { key: 'speed', label: 'Speed', unit: 'km/h' },
+  { key: 'distance', label: 'Distância', unit: 'km' },
+  { key: 'time', label: 'Tempo', unit: 'min' },
+  { key: 'calories', label: 'Calorias', unit: 'kcal' },
+  { key: 'speed', label: 'Velocidade', unit: 'km/h' },
 ];
 
 export default function StatisticsScreen() {
@@ -77,7 +77,7 @@ export default function StatisticsScreen() {
   };
 
   const formatShortDate = (date) =>
-    new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    new Date(date).toLocaleDateString('pt-BR', { month: 'short', day: 'numeric' });
 
   const getRecordType = (record) => record.activityType || 'indoor';
   const getDayKey = (dateValue) => {
@@ -98,7 +98,7 @@ export default function StatisticsScreen() {
     return new Date(year, month - 1, 1);
   };
   const formatMonthLabel = (monthKey) =>
-    getDateFromMonthKey(monthKey).toLocaleDateString('en-US', {
+    getDateFromMonthKey(monthKey).toLocaleDateString('pt-BR', {
       month: 'short',
       year: 'numeric',
     });
@@ -178,8 +178,8 @@ export default function StatisticsScreen() {
     ({
       unit,
       showSecondary,
-      primaryLabel = 'Value',
-      secondaryLabel = 'Walk',
+      primaryLabel = 'Valor',
+      secondaryLabel = 'Caminhada',
       primaryColor = '#111827',
       secondaryColor = '#6B7280',
     }) =>
@@ -226,7 +226,7 @@ export default function StatisticsScreen() {
     }
 
     return {
-      text: 'No change',
+      text: 'Sem mudança',
       style: styles.changeNeutral,
     };
   };
@@ -238,7 +238,7 @@ export default function StatisticsScreen() {
   const activeBestSeries = bestActivityType === 'walk' ? walkBestSeries : indoorBestSeries;
   const activeBestColor =
     bestActivityType === 'walk' ? ACTIVITY_COLORS.walk : ACTIVITY_COLORS.indoor;
-  const activeBestLabel = bestActivityType === 'walk' ? 'Walk' : 'Indoor';
+  const activeBestLabel = bestActivityType === 'walk' ? 'Caminhada' : 'Bic. Ergométrica';
   const activeBestMaxValue = Math.max(...activeBestSeries.data.map((point) => point.value), 1);
   const frequencyTypes = filterType === 'all' ? ['indoor', 'walk'] : [filterType];
 
@@ -321,8 +321,8 @@ export default function StatisticsScreen() {
         style={styles.header}
         onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}
       >
-        <Text style={styles.headerTitle}>Statistics</Text>
-        <Text style={styles.headerSubtitle}>Insights from your sessions</Text>
+        <Text style={styles.headerTitle}>Estatísticas</Text>
+        <Text style={styles.headerSubtitle}>Insights das suas sessões</Text>
       </View>
       <ScrollView
         style={styles.scrollView}
@@ -342,21 +342,21 @@ export default function StatisticsScreen() {
               onPress={() => setFilterType(type)}
             >
               <Text style={[styles.filterText, filterType === type && styles.filterTextActive]}>
-                {type === 'all' ? 'All' : type === 'indoor' ? 'Indoor' : 'Walk'}
+                {type === 'all' ? 'Todos' : type === 'indoor' ? 'Bic. Ergométrica' : 'Caminhada'}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
 
         {records.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No data yet</Text>
-            <Text style={styles.emptySubtext}>Add exercises to unlock insights.</Text>
+            <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>Sem dados ainda</Text>
+            <Text style={styles.emptySubtext}>Adicione exercícios para desbloquear insights.</Text>
           </View>
         ) : (
           <>
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Last Exercise Comparison</Text>
+              <Text style={styles.sectionTitle}>Comparação dos Últimos Exercícios</Text>
               {(filterType === 'all' ? ['indoor', 'walk'] : [filterType]).map((type) => {
                 const pair = getLastTwoByType(type);
                 const comparison = buildSessionComparison(type);
@@ -365,10 +365,10 @@ export default function StatisticsScreen() {
                   return (
                     <View style={styles.comparisonCard} key={type}>
                       <Text style={styles.comparisonTitle}>
-                        {type === 'indoor' ? 'Indoor' : 'Walk'}
+                        {type === 'indoor' ? 'Bic. Ergométrica' : 'Caminhada'}
                       </Text>
                       <Text style={styles.comparisonEmptyText}>
-                        Add at least 2 {type} sessions to compare performance.
+                        Adicione pelo menos 2 sessões de {type === 'indoor' ? 'bic. ergométrica' : 'caminhada'} para comparar desempenho.
                       </Text>
                     </View>
                   );
@@ -377,7 +377,7 @@ export default function StatisticsScreen() {
                 return (
                   <View style={styles.comparisonCard} key={type}>
                     <Text style={styles.comparisonTitle}>
-                      {type === 'indoor' ? 'Indoor' : 'Walk'}: {formatShortDate(pair.latest.date)} vs {formatShortDate(pair.previous.date)}
+                      {type === 'indoor' ? 'Bic. Ergométrica' : 'Caminhada'}: {formatShortDate(pair.latest.date)} vs {formatShortDate(pair.previous.date)}
                     </Text>
                     {comparison.map((metric) => {
                       const change = renderChange(metric);
@@ -409,7 +409,7 @@ export default function StatisticsScreen() {
                       onPress={() => setBestActivityType(type)}
                     >
                       <Text style={[styles.bestTabText, isActive && styles.bestTabTextActive]}>
-                        {type === 'walk' ? 'Walk' : 'Indoor'}
+                        {type === 'walk' ? 'Caminhada' : 'Bic. Ergométrica'}
                       </Text>
                     </TouchableOpacity>
                   );
@@ -441,7 +441,7 @@ export default function StatisticsScreen() {
                 {!activeBestSeries.hasData ? (
                   <View style={styles.emptyChart}>
                     <Text style={styles.emptyChartText}>
-                      {bestActivityType === 'walk' ? 'No walk records' : 'No indoor records'}
+                      {bestActivityType === 'walk' ? 'Sem registros de caminhada' : 'Sem registros de bic. ergométrica'}
                     </Text>
                   </View>
                 ) : (
@@ -497,9 +497,9 @@ export default function StatisticsScreen() {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Exercise Frequency</Text>
+              <Text style={styles.sectionTitle}>Frequência de Exercícios</Text>
               {frequencyTypes.map((type) => {
-                const label = type === 'walk' ? 'Walk' : 'Indoor';
+                const label = type === 'walk' ? 'Caminhada' : 'Bic. Ergométrica';
                 const color = ACTIVITY_COLORS[type];
                 const months = getAvailableMonths(type);
                 const selectedMonth = months.includes(selectedMonths[type])
@@ -511,7 +511,7 @@ export default function StatisticsScreen() {
                   <View style={styles.heatmapCard} key={`heatmap-${type}`}>
                     <View style={styles.heatmapHeaderRow}>
                       <Text style={styles.heatmapTypeTitle}>{label}</Text>
-                      <Text style={styles.heatmapHint}>Tap a month</Text>
+                      <Text style={styles.heatmapHint}>Toque em um mês</Text>
                     </View>
                     <ScrollView
                       horizontal

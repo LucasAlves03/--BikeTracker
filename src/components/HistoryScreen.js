@@ -58,7 +58,7 @@ export default function HistoryScreen() {
   };
   const formatDayKey = (dayKey) => {
     const [year, month, day] = dayKey.split('-').map(Number);
-    return new Date(year, month - 1, day).toLocaleDateString('en-US', {
+    return new Date(year, month - 1, day).toLocaleDateString('pt-BR', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
@@ -81,12 +81,12 @@ export default function HistoryScreen() {
 
   const deleteRecord = async (id) => {
     Alert.alert(
-      'Delete Record',
-      'Are you sure you want to delete this exercise?',
+      'Excluir Registro',
+      'Tem certeza que deseja excluir este exercício?',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Delete',
+          text: 'Excluir',
           style: 'destructive',
           onPress: async () => {
             const updatedRecords = records.filter(record => record.id !== id);
@@ -105,7 +105,7 @@ export default function HistoryScreen() {
 
   const getActivityType = (record) => record.activityType || 'indoor';
 
-  const getRecordTitle = (type) => (type === 'walk' ? 'Outdoor Walk' : 'Indoor Bike');
+  const getRecordTitle = (type) => (type === 'walk' ? 'Caminhada' : 'Bic. Ergométrica');
 
   const getPreviousRecord = (record) => {
     if (!record) return null;
@@ -124,7 +124,7 @@ export default function HistoryScreen() {
     const currentValue = parseFloat(current || 0);
     const previousValue = parseFloat(previous || 0);
     const delta = currentValue - previousValue;
-    if (delta === 0) return 'No change';
+    if (delta === 0) return 'Sem mudança';
     const prefix = delta > 0 ? '+' : '';
     return `${prefix}${delta.toFixed(1)} ${unit}`;
   };
@@ -193,8 +193,8 @@ export default function HistoryScreen() {
         style={styles.header}
         onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}
       >
-        <Text style={styles.headerTitle}>History</Text>
-        <Text style={styles.headerSubtitle}>All your sessions</Text>
+        <Text style={styles.headerTitle}>Histórico</Text>
+        <Text style={styles.headerSubtitle}>Todas as suas sessões</Text>
       </View>
       <ScrollView
         ref={scrollViewRef}
@@ -211,8 +211,8 @@ export default function HistoryScreen() {
             style={[styles.filterButton, filter === 'week' && styles.filterButtonActive]}
             onPress={() => setFilter('week')}
           >
-            <Text style={[styles.filterText, filter === 'week' && styles.filterTextActive]}>
-              Week
+              <Text style={[styles.filterText, filter === 'week' && styles.filterTextActive]}>
+              Semana
             </Text>
           </TouchableOpacity>
           
@@ -220,8 +220,8 @@ export default function HistoryScreen() {
             style={[styles.filterButton, filter === 'month' && styles.filterButtonActive]}
             onPress={() => setFilter('month')}
           >
-            <Text style={[styles.filterText, filter === 'month' && styles.filterTextActive]}>
-              Month
+              <Text style={[styles.filterText, filter === 'month' && styles.filterTextActive]}>
+              Mês
             </Text>
           </TouchableOpacity>
           
@@ -229,8 +229,8 @@ export default function HistoryScreen() {
             style={[styles.filterButton, filter === 'all' && styles.filterButtonActive]}
             onPress={() => setFilter('all')}
           >
-            <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
-              All Time
+              <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
+              Tudo
             </Text>
           </TouchableOpacity>
         </View>
@@ -239,27 +239,27 @@ export default function HistoryScreen() {
           {!!activeHighlight?.date && (
             <View style={styles.highlightBanner}>
               <Text style={styles.highlightBannerText}>
-                Highlighting {
+                Destacando sessões de {
                   activeHighlight.type === 'walk'
-                    ? 'walk'
+                    ? 'caminhada'
                     : activeHighlight.type === 'indoor'
-                      ? 'indoor'
-                      : 'all'
-                } sessions on {formatDayKey(activeHighlight.date)}
+                      ? 'bic. ergométrica'
+                      : 'todos os tipos'
+                } em {formatDayKey(activeHighlight.date)}
               </Text>
               <TouchableOpacity onPress={() => setActiveHighlight(null)}>
-                <Text style={styles.highlightBannerAction}>Clear</Text>
+                <Text style={styles.highlightBannerAction}>Limpar</Text>
               </TouchableOpacity>
             </View>
           )}
           <Text style={styles.sectionTitle}>
-            All Sessions ({filteredRecords.length})
+            Todas as Sessões ({filteredRecords.length})
           </Text>
 
           {filteredRecords.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No sessions found</Text>
-              <Text style={styles.emptySubtext}>Start tracking your exercises!</Text>
+              <Text style={styles.emptyText}>Nenhuma sessão encontrada</Text>
+              <Text style={styles.emptySubtext}>Comece a registrar seus exercícios!</Text>
             </View>
           ) : (
             <View style={styles.cardsContainer}>
@@ -328,27 +328,27 @@ export default function HistoryScreen() {
                     contentContainerStyle={styles.modalBodyContent}
                     showsVerticalScrollIndicator={false}
                   >
-                    <Text style={styles.modalSectionTitle}>Session Summary</Text>
+                    <Text style={styles.modalSectionTitle}>Resumo da Sessão</Text>
 
                     <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Time</Text>
+                      <Text style={styles.summaryLabel}>Tempo</Text>
                       <Text style={styles.summaryValue}>{selectedRecord.time} min</Text>
                     </View>
                     <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Distance</Text>
+                      <Text style={styles.summaryLabel}>Distância</Text>
                       <Text style={styles.summaryValue}>{selectedRecord.distance} km</Text>
                     </View>
                     <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Speed</Text>
+                      <Text style={styles.summaryLabel}>Velocidade</Text>
                       <Text style={styles.summaryValue}>{selectedRecord.speed} km/h</Text>
                     </View>
                     <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Calories</Text>
+                      <Text style={styles.summaryLabel}>Calorias</Text>
                       <Text style={styles.summaryValue}>{selectedRecord.calories} kcal</Text>
                     </View>
                     {getActivityType(selectedRecord) === 'walk' && selectedRecord.steps ? (
                       <View style={styles.summaryRow}>
-                        <Text style={styles.summaryLabel}>Steps</Text>
+                        <Text style={styles.summaryLabel}>Passos</Text>
                         <Text style={styles.summaryValue}>{selectedRecord.steps}</Text>
                       </View>
                     ) : null}
@@ -360,28 +360,28 @@ export default function HistoryScreen() {
                     {previousRecord ? (
                       <>
                         <Text style={styles.modalSectionTitle}>
-                          Vs Previous {getRecordTitle(getActivityType(selectedRecord))}
+                          Vs Sessão Anterior de {getRecordTitle(getActivityType(selectedRecord))}
                         </Text>
                         <View style={styles.summaryRow}>
-                          <Text style={styles.summaryLabel}>Time change</Text>
+                          <Text style={styles.summaryLabel}>Variação de tempo</Text>
                           <Text style={[styles.summaryDelta, getDeltaStyle(selectedRecord.time, previousRecord.time)]}>
                             {getDeltaText(selectedRecord.time, previousRecord.time, 'min')}
                           </Text>
                         </View>
                         <View style={styles.summaryRow}>
-                          <Text style={styles.summaryLabel}>Distance change</Text>
+                          <Text style={styles.summaryLabel}>Variação de distância</Text>
                           <Text style={[styles.summaryDelta, getDeltaStyle(selectedRecord.distance, previousRecord.distance)]}>
                             {getDeltaText(selectedRecord.distance, previousRecord.distance, 'km')}
                           </Text>
                         </View>
                         <View style={styles.summaryRow}>
-                          <Text style={styles.summaryLabel}>Speed change</Text>
+                          <Text style={styles.summaryLabel}>Variação de velocidade</Text>
                           <Text style={[styles.summaryDelta, getDeltaStyle(selectedRecord.speed, previousRecord.speed)]}>
                             {getDeltaText(selectedRecord.speed, previousRecord.speed, 'km/h')}
                           </Text>
                         </View>
                         <View style={styles.summaryRow}>
-                          <Text style={styles.summaryLabel}>Calories change</Text>
+                          <Text style={styles.summaryLabel}>Variação de calorias</Text>
                           <Text style={[styles.summaryDelta, getDeltaStyle(selectedRecord.calories, previousRecord.calories)]}>
                             {getDeltaText(selectedRecord.calories, previousRecord.calories, 'kcal')}
                           </Text>
@@ -389,7 +389,7 @@ export default function HistoryScreen() {
                       </>
                     ) : (
                       <Text style={styles.noPreviousText}>
-                        No previous {getRecordTitle(getActivityType(selectedRecord)).toLowerCase()} session to compare yet.
+                        Ainda não há sessão anterior de {getRecordTitle(getActivityType(selectedRecord)).toLowerCase()} para comparar.
                       </Text>
                     )}
 
@@ -398,13 +398,13 @@ export default function HistoryScreen() {
                         style={styles.modalCloseButton}
                         onPress={() => setSelectedRecord(null)}
                       >
-                        <Text style={styles.modalCloseButtonText}>Close</Text>
+                        <Text style={styles.modalCloseButtonText}>Fechar</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={styles.deleteButton}
                         onPress={() => deleteRecord(selectedRecord.id)}
                       >
-                        <Text style={styles.deleteButtonText}>Delete</Text>
+                        <Text style={styles.deleteButtonText}>Excluir</Text>
                       </TouchableOpacity>
                     </View>
                   </ScrollView>
@@ -522,12 +522,7 @@ const styles = StyleSheet.create({
   },
   modernCardHighlighted: {
     borderWidth: 2,
-    borderColor: '#3B82F6',
-    shadowColor: '#3B82F6',
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
+    borderColor: '#fff',
   },
   horizontalCardContent: {
     flexDirection: 'row',

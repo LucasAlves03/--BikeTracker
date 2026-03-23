@@ -59,8 +59,8 @@ export default function AddExerciseScreen({ navigation }) {
     try {
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: 'Great job!',
-          body: `You completed ${sessionData.time} minutes today! Distance: ${sessionData.distance} km, Calories: ${sessionData.calories}`,
+          title: 'Mandou bem!',
+          body: `Você completou ${sessionData.time} minutos hoje! Distância: ${sessionData.distance} km, Calorias: ${sessionData.calories}`,
           sound: true,
         },
         trigger: null,
@@ -72,7 +72,7 @@ export default function AddExerciseScreen({ navigation }) {
 
   const saveRecord = async () => {
     if (!time || !speed || !calories || !distance || (activityType === 'walk' && !steps)) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert('Erro', 'Preencha todos os campos');
       return;
     }
 
@@ -81,13 +81,13 @@ export default function AddExerciseScreen({ navigation }) {
       id: Date.now().toString(),
       activityType,
       date: now.toISOString(),
-      displayDate: now.toLocaleDateString('en-US', {
+      displayDate: now.toLocaleDateString('pt-BR', {
         weekday: 'short',
         year: 'numeric',
         month: 'short',
         day: 'numeric',
       }),
-      displayTime: now.toLocaleTimeString('en-US', {
+      displayTime: now.toLocaleTimeString('pt-BR', {
         hour: '2-digit',
         minute: '2-digit',
       }),
@@ -121,7 +121,7 @@ export default function AddExerciseScreen({ navigation }) {
       
       triggerNotificationRefresh();
 
-      Alert.alert('Success', 'Record saved successfully!', [
+      Alert.alert('Sucesso', 'Exercício salvo com sucesso!', [
         {
           text: 'OK',
           onPress: () => {
@@ -131,7 +131,7 @@ export default function AddExerciseScreen({ navigation }) {
         }
       ]);
     } catch (error) {
-      Alert.alert('Error', 'Failed to save record');
+      Alert.alert('Erro', 'Falha ao salvar exercício');
       console.error('Error saving record:', error);
     }
   };
@@ -143,9 +143,9 @@ export default function AddExerciseScreen({ navigation }) {
         style={styles.header}
         onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}
       >
-        <Text style={styles.headerTitle}>Add Exercise</Text>
+        <Text style={styles.headerTitle}>Adicionar Exercício</Text>
         <Text style={styles.headerSubtitle}>
-          {activityType === 'walk' ? 'Log your walk' : 'Log your indoor session'}
+          {activityType === 'walk' ? 'Registre sua caminhada' : 'Registre sua sessão de bic. ergométrica'}
         </Text>
       </View>
       
@@ -168,7 +168,7 @@ export default function AddExerciseScreen({ navigation }) {
                 onPress={() => setActivityType(type)}
               >
                 <Text style={[styles.trackerTabText, isActive && styles.trackerTabTextActive]}>
-                  {type === 'walk' ? 'Walk' : 'Indoor'}
+                  {type === 'walk' ? 'Caminhada' : 'Bic. Ergométrica'}
                 </Text>
               </TouchableOpacity>
             );
@@ -177,48 +177,48 @@ export default function AddExerciseScreen({ navigation }) {
 
         <View style={styles.inputSection}>
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Time (minutes)</Text>
+            <Text style={styles.label}>Tempo (minutos)</Text>
             <TextInput
               style={styles.input}
               value={time}
               onChangeText={setTime}
               keyboardType="numeric"
-              placeholder="Enter time"
+              placeholder="Digite o tempo"
               placeholderTextColor="#9CA3AF"
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Speed (km/h)</Text>
+            <Text style={styles.label}>Velocidade (km/h)</Text>
             <TextInput
               style={styles.input}
               value={speed}
               onChangeText={setSpeed}
               keyboardType="numeric"
-              placeholder="Enter speed"
+              placeholder="Digite a velocidade"
               placeholderTextColor="#9CA3AF"
             />
           </View>
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Distance (km)</Text>
+            <Text style={styles.label}>Distância (km)</Text>
             <TextInput
               style={styles.input}
               value={distance}
               onChangeText={setDistance}
               keyboardType="numeric"
-              placeholder="Enter distance"
+              placeholder="Digite a distância"
               placeholderTextColor="#9CA3AF"
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Calories</Text>
+            <Text style={styles.label}>Calorias</Text>
             <TextInput
               style={styles.input}
               value={calories}
               onChangeText={setCalories}
               keyboardType="numeric"
-              placeholder="Enter calories"
+              placeholder="Digite as calorias"
               placeholderTextColor="#9CA3AF"
             />
           </View>
@@ -227,20 +227,20 @@ export default function AddExerciseScreen({ navigation }) {
 
           {activityType === 'walk' && (
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Steps</Text>
+              <Text style={styles.label}>Passos</Text>
               <TextInput
                 style={styles.input}
                 value={steps}
                 onChangeText={setSteps}
                 keyboardType="numeric"
-                placeholder="Enter steps"
+                placeholder="Digite os passos"
                 placeholderTextColor="#9CA3AF"
               />
             </View>
           )}
 
           <TouchableOpacity style={styles.saveButton} onPress={saveRecord}>
-            <Text style={styles.saveButtonText}>Save Exercise</Text>
+            <Text style={styles.saveButtonText}>Salvar Exercício</Text>
           </TouchableOpacity>
         </View>
 
