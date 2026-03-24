@@ -1,10 +1,12 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
   View,
   ScrollView,
   TouchableOpacity,
+  Animated,
+  Easing,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -12,7 +14,7 @@ import { LineChart } from 'react-native-gifted-charts';
 import { BikeContext } from '../context/BikeContext';
 
 const PERFORMANCE_METRICS = [
-  { key: 'distance', label: 'Melhor Distância', unit: 'km' },
+  { key: 'distance', label: 'Melhor DistÃ¢ncia', unit: 'km' },
   { key: 'time', label: 'Melhor Tempo', unit: 'min' },
   { key: 'calories', label: 'Melhores Calorias', unit: 'kcal' },
   { key: 'speed', label: 'Melhor Velocidade', unit: 'km/h' },
@@ -33,14 +35,14 @@ const hexToRgba = (hex, alpha) => {
 };
 
 const COMPARE_OPTIONS = [
-  { key: 'distance', label: 'Distância (km)' },
+  { key: 'distance', label: 'DistÃ¢ncia (km)' },
   { key: 'time', label: 'Tempo (min)' },
   { key: 'calories', label: 'Calorias' },
   { key: 'speed', label: 'Velocidade (km/h)' },
 ];
 
 const SESSION_COMPARISON_METRICS = [
-  { key: 'distance', label: 'Distância', unit: 'km' },
+  { key: 'distance', label: 'DistÃ¢ncia', unit: 'km' },
   { key: 'time', label: 'Tempo', unit: 'min' },
   { key: 'calories', label: 'Calorias', unit: 'kcal' },
   { key: 'speed', label: 'Velocidade', unit: 'km/h' },
@@ -53,7 +55,9 @@ export default function StatisticsScreen() {
   const [compareMetric, setCompareMetric] = useState('distance');
   const [bestActivityType, setBestActivityType] = useState('indoor');
   const [selectedMonths, setSelectedMonths] = useState({});
+  const [expandedComparisonType, setExpandedComparisonType] = useState('indoor');
   const [headerHeight, setHeaderHeight] = useState(0);
+  const comparisonReveal = useRef(new Animated.Value(0)).current;
   const { refreshTrigger } = useContext(BikeContext);
 
   useFocusEffect(
@@ -75,6 +79,23 @@ export default function StatisticsScreen() {
       console.error('Error loading records:', error);
     }
   };
+
+  useEffect(() => {
+    const visibleTypes = filterType === 'all' ? ['indoor', 'walk'] : [filterType];
+    if (!visibleTypes.includes(expandedComparisonType)) {
+      setExpandedComparisonType(visibleTypes[0]);
+    }
+  }, [filterType, expandedComparisonType]);
+
+  useEffect(() => {
+    comparisonReveal.setValue(0);
+    Animated.timing(comparisonReveal, {
+      toValue: 1,
+      duration: 420,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [filterType, records, comparisonReveal]);
 
   const formatShortDate = (date) =>
     new Date(date).toLocaleDateString('pt-BR', { month: 'short', day: 'numeric' });
@@ -226,8 +247,16 @@ export default function StatisticsScreen() {
     }
 
     return {
-      text: 'Sem mudança',
+      text: 'Sem mudanÃ§a',
       style: styles.changeNeutral,
+    };
+  };
+
+  const getComparisonRatios = (metric) => {
+    const maxValue = Math.max(metric.latestValue, metric.previousValue, 1);
+    return {
+      latestRatio: metric.latestValue / maxValue,
+      previousRatio: metric.previousValue / maxValue,
     };
   };
 
@@ -238,7 +267,7 @@ export default function StatisticsScreen() {
   const activeBestSeries = bestActivityType === 'walk' ? walkBestSeries : indoorBestSeries;
   const activeBestColor =
     bestActivityType === 'walk' ? ACTIVITY_COLORS.walk : ACTIVITY_COLORS.indoor;
-  const activeBestLabel = bestActivityType === 'walk' ? 'Caminhada' : 'Bic. Ergométrica';
+  const activeBestLabel = bestActivityType === 'walk' ? 'Caminhada' : 'Bic. ErgomÃ©trica';
   const activeBestMaxValue = Math.max(...activeBestSeries.data.map((point) => point.value), 1);
   const frequencyTypes = filterType === 'all' ? ['indoor', 'walk'] : [filterType];
 
@@ -321,8 +350,8 @@ export default function StatisticsScreen() {
         style={styles.header}
         onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}
       >
-        <Text style={styles.headerTitle}>Estatísticas</Text>
-        <Text style={styles.headerSubtitle}>Insights das suas sessões</Text>
+        <Text style={styles.headerTitle}>EstatÃ­sticas</Text>
+        <Text style={styles.headerSubtitle}>Insights das suas sessÃµes</Text>
       </View>
       <ScrollView
         style={styles.scrollView}
@@ -341,8 +370,8 @@ export default function StatisticsScreen() {
               style={[styles.filterButton, filterType === type && styles.filterButtonActive]}
               onPress={() => setFilterType(type)}
             >
-              <Text style={[styles.filterText, filterType === type && styles.filterTextActive]}>
-                {type === 'all' ? 'Todos' : type === 'indoor' ? 'Bic. Ergométrica' : 'Caminhada'}
+              <Text numberOfLines={1} style={[styles.filterText, filterType === type && styles.filterTextActive]}>
+                {type === 'all' ? 'Todos' : type === 'indoor' ? 'Bic. ErgomÃ©trica' : 'Caminhada'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -351,24 +380,23 @@ export default function StatisticsScreen() {
         {records.length === 0 ? (
             <View style={styles.emptyState}>
             <Text style={styles.emptyText}>Sem dados ainda</Text>
-            <Text style={styles.emptySubtext}>Adicione exercícios para desbloquear insights.</Text>
+            <Text style={styles.emptySubtext}>Adicione exercÃ­cios para desbloquear insights.</Text>
           </View>
         ) : (
-          <>
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Comparação dos Últimos Exercícios</Text>
+          <>            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>ComparaÃ§Ã£o dos Ãšltimos ExercÃ­cios</Text>
               {(filterType === 'all' ? ['indoor', 'walk'] : [filterType]).map((type) => {
                 const pair = getLastTwoByType(type);
                 const comparison = buildSessionComparison(type);
+                const isExpanded = expandedComparisonType === type;
+                const typeLabel = type === 'indoor' ? 'Bic. ErgomÃ©trica' : 'Caminhada';
 
                 if (!pair || !comparison) {
                   return (
                     <View style={styles.comparisonCard} key={type}>
-                      <Text style={styles.comparisonTitle}>
-                        {type === 'indoor' ? 'Bic. Ergométrica' : 'Caminhada'}
-                      </Text>
+                      <Text style={styles.comparisonTitle}>{typeLabel}</Text>
                       <Text style={styles.comparisonEmptyText}>
-                        Adicione pelo menos 2 sessões de {type === 'indoor' ? 'bic. ergométrica' : 'caminhada'} para comparar desempenho.
+                        Adicione pelo menos 2 sessÃµes de {type === 'indoor' ? 'bic. ergomÃ©trica' : 'caminhada'} para comparar desempenho.
                       </Text>
                     </View>
                   );
@@ -376,23 +404,88 @@ export default function StatisticsScreen() {
 
                 return (
                   <View style={styles.comparisonCard} key={type}>
-                    <Text style={styles.comparisonTitle}>
-                      {type === 'indoor' ? 'Bic. Ergométrica' : 'Caminhada'}: {formatShortDate(pair.latest.date)} vs {formatShortDate(pair.previous.date)}
-                    </Text>
-                    {comparison.map((metric) => {
-                      const change = renderChange(metric);
-                      return (
-                        <View style={styles.comparisonRow} key={`${type}-${metric.key}`}>
-                          <View style={styles.comparisonMetricInfo}>
-                            <Text style={styles.comparisonMetricLabel}>{metric.label}</Text>
-                            <Text style={styles.comparisonMetricValue}>
-                              {formatMetricValue(metric.latestValue, metric.unit)} vs {formatMetricValue(metric.previousValue, metric.unit)}
-                            </Text>
-                          </View>
-                          <Text style={[styles.comparisonChangeText, change.style]}>{change.text}</Text>
-                        </View>
-                      );
-                    })}
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={styles.comparisonHeaderRow}
+                      onPress={() =>
+                        setExpandedComparisonType((prev) => (prev === type ? null : type))
+                      }
+                    >
+                      <View>
+                        <Text style={styles.comparisonTitle}>{typeLabel}</Text>
+                        <Text style={styles.comparisonSubtitle}>
+                          {formatShortDate(pair.latest.date)} vs {formatShortDate(pair.previous.date)}
+                        </Text>
+                      </View>
+                      <View style={styles.comparisonHeaderRight}>
+                        <View style={[styles.comparisonDot, { backgroundColor: ACTIVITY_COLORS[type] }]} />
+                        <Text style={styles.comparisonToggleText}>{isExpanded ? 'Ocultar' : 'Detalhar'}</Text>
+                      </View>
+                    </TouchableOpacity>
+
+                    {isExpanded && (
+                      <Animated.View
+                        style={[
+                          styles.comparisonMetricsWrap,
+                          {
+                            opacity: comparisonReveal,
+                            transform: [
+                              {
+                                translateY: comparisonReveal.interpolate({
+                                  inputRange: [0, 1],
+                                  outputRange: [10, 0],
+                                }),
+                              },
+                            ],
+                          },
+                        ]}
+                      >
+                        {comparison.map((metric) => {
+                          const change = renderChange(metric);
+                          const { latestRatio, previousRatio } = getComparisonRatios(metric);
+                          return (
+                            <View style={styles.comparisonMetricCard} key={`${type}-${metric.key}`}>
+                              <View style={styles.comparisonMetricTop}>
+                                <Text style={styles.comparisonMetricLabel}>{metric.label}</Text>
+                                <Text style={[styles.comparisonDeltaBadge, change.style]}>{change.text}</Text>
+                              </View>
+
+                              <View style={styles.comparisonBarLine}>
+                                <Text style={styles.comparisonBarLabel}>Ãšltimo</Text>
+                                <View style={styles.comparisonBarTrack}>
+                                  <View
+                                    style={[
+                                      styles.comparisonBarFill,
+                                      styles.comparisonBarFillLatest,
+                                      { width: `${Math.max(latestRatio * 100, 8)}%` },
+                                    ]}
+                                  />
+                                </View>
+                                <Text style={styles.comparisonBarValue}>
+                                  {formatMetricValue(metric.latestValue, metric.unit)}
+                                </Text>
+                              </View>
+
+                              <View style={styles.comparisonBarLine}>
+                                <Text style={styles.comparisonBarLabel}>Anterior</Text>
+                                <View style={styles.comparisonBarTrack}>
+                                  <View
+                                    style={[
+                                      styles.comparisonBarFill,
+                                      styles.comparisonBarFillPrevious,
+                                      { width: `${Math.max(previousRatio * 100, 8)}%` },
+                                    ]}
+                                  />
+                                </View>
+                                <Text style={styles.comparisonBarValue}>
+                                  {formatMetricValue(metric.previousValue, metric.unit)}
+                                </Text>
+                              </View>
+                            </View>
+                          );
+                        })}
+                      </Animated.View>
+                    )}
                   </View>
                 );
               })}
@@ -409,7 +502,7 @@ export default function StatisticsScreen() {
                       onPress={() => setBestActivityType(type)}
                     >
                       <Text style={[styles.bestTabText, isActive && styles.bestTabTextActive]}>
-                        {type === 'walk' ? 'Caminhada' : 'Bic. Ergométrica'}
+                        {type === 'walk' ? 'Caminhada' : 'Bic. ErgomÃ©trica'}
                       </Text>
                     </TouchableOpacity>
                   );
@@ -441,7 +534,7 @@ export default function StatisticsScreen() {
                 {!activeBestSeries.hasData ? (
                   <View style={styles.emptyChart}>
                     <Text style={styles.emptyChartText}>
-                      {bestActivityType === 'walk' ? 'Sem registros de caminhada' : 'Sem registros de bic. ergométrica'}
+                      {bestActivityType === 'walk' ? 'Sem registros de caminhada' : 'Sem registros de bic. ergomÃ©trica'}
                     </Text>
                   </View>
                 ) : (
@@ -497,9 +590,9 @@ export default function StatisticsScreen() {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Frequência de Exercícios</Text>
+              <Text style={styles.sectionTitle}>FrequÃªncia de ExercÃ­cios</Text>
               {frequencyTypes.map((type) => {
-                const label = type === 'walk' ? 'Caminhada' : 'Bic. Ergométrica';
+                const label = type === 'walk' ? 'Caminhada' : 'Bic. ErgomÃ©trica';
                 const color = ACTIVITY_COLORS[type];
                 const months = getAvailableMonths(type);
                 const selectedMonth = months.includes(selectedMonths[type])
@@ -511,7 +604,7 @@ export default function StatisticsScreen() {
                   <View style={styles.heatmapCard} key={`heatmap-${type}`}>
                     <View style={styles.heatmapHeaderRow}>
                       <Text style={styles.heatmapTypeTitle}>{label}</Text>
-                      <Text style={styles.heatmapHint}>Toque em um mês</Text>
+                      <Text style={styles.heatmapHint}>Toque em um mÃªs</Text>
                     </View>
                     <ScrollView
                       horizontal
@@ -628,7 +721,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0F172A',
     paddingTop: 60,
     paddingHorizontal: 24,
-    paddingBottom: 16,
+    paddingBottom: 5,
   },
   headerTitle: {
     fontSize: 32,
@@ -642,10 +735,10 @@ const styles = StyleSheet.create({
   },
   filterSection: {
     flexDirection: 'row',
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     marginTop: 15,
     marginBottom: 24,
-    gap: 12,
+    gap: 8,
   },
   filterButton: {
     flex: 1,
@@ -662,7 +755,7 @@ const styles = StyleSheet.create({
     borderColor: '#111827',
   },
   filterText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#94A3B8',
   },
@@ -784,41 +877,100 @@ const styles = StyleSheet.create({
   },
   comparisonTitle: {
     color: '#E2E8F0',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '700',
-    marginBottom: 10,
+  },
+  comparisonSubtitle: {
+    color: '#94A3B8',
+    fontSize: 12,
+    marginTop: 2,
   },
   comparisonEmptyText: {
     color: '#94A3B8',
     fontSize: 13,
   },
-  comparisonRow: {
+  comparisonHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#1E293B',
   },
-  comparisonMetricInfo: {
-    flex: 1,
+  comparisonHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  comparisonDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+  },
+  comparisonToggleText: {
+    fontSize: 12,
+    color: '#CBD5E1',
+    fontWeight: '700',
+  },
+  comparisonMetricsWrap: {
+    marginTop: 12,
+    gap: 10,
+  },
+  comparisonMetricCard: {
+    backgroundColor: '#0B1220',
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderTopWidth: 1,
+    borderColor: '#1E293B',
+  },
+  comparisonMetricTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
   comparisonMetricLabel: {
     color: '#E2E8F0',
     fontSize: 13,
     fontWeight: '600',
-    marginBottom: 2,
   },
-  comparisonMetricValue: {
-    color: '#94A3B8',
-    fontSize: 12,
-  },
-  comparisonChangeText: {
+  comparisonDeltaBadge: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  comparisonBarLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+  },
+  comparisonBarLabel: {
+    width: 54,
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: '600',
+  },
+  comparisonBarTrack: {
+    flex: 1,
+    height: 8,
+    backgroundColor: '#1E293B',
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  comparisonBarFill: {
+    height: '100%',
+    borderRadius: 999,
+  },
+  comparisonBarFillLatest: {
+    backgroundColor: '#38BDF8',
+  },
+  comparisonBarFillPrevious: {
+    backgroundColor: '#94A3B8',
+  },
+  comparisonBarValue: {
+    minWidth: 74,
+    fontSize: 11,
+    color: '#E2E8F0',
+    fontWeight: '700',
     textAlign: 'right',
-    minWidth: 90,
   },
   changeUp: {
     color: '#22C55E',
@@ -964,3 +1116,4 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 });
+
