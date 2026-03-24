@@ -19,6 +19,12 @@ const ACTIVITY_HEADER_IMAGES = {
   indoor: require('../../assets/header_indoor.png'),
   walk: require('../../assets/header_walk.png'),
 };
+const DETAIL_METRICS = [
+  { key: 'time', label: 'Tempo', unit: 'min', color: '#38BDF8' },
+  { key: 'distance', label: 'Distância', unit: 'km', color: '#22D3EE' },
+  { key: 'speed', label: 'Velocidade', unit: 'km/h', color: '#34D399' },
+  { key: 'calories', label: 'Calorias', unit: 'kcal', color: '#F97316' },
+];
 
 export default function HistoryScreen() {
   const navigation = useNavigation();
@@ -107,6 +113,14 @@ export default function HistoryScreen() {
 
   const getRecordTitle = (type) => (type === 'walk' ? 'Caminhada' : 'Bic. Ergométrica');
 
+  const parseMetricNumber = (value) => {
+    if (value === null || value === undefined || value === '') return 0;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    const normalized = String(value).trim().replace(',', '.').replace(/[^\d.-]/g, '');
+    const parsed = parseFloat(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
   const getPreviousRecord = (record) => {
     if (!record) return null;
 
@@ -121,8 +135,8 @@ export default function HistoryScreen() {
   };
 
   const getDeltaText = (current, previous, unit) => {
-    const currentValue = parseFloat(current || 0);
-    const previousValue = parseFloat(previous || 0);
+    const currentValue = parseMetricNumber(current);
+    const previousValue = parseMetricNumber(previous);
     const delta = currentValue - previousValue;
     if (delta === 0) return 'Sem mudança';
     const prefix = delta > 0 ? '+' : '';
@@ -130,13 +144,25 @@ export default function HistoryScreen() {
   };
 
   const getDeltaValue = (current, previous) =>
-    parseFloat(current || 0) - parseFloat(previous || 0);
+    parseMetricNumber(current) - parseMetricNumber(previous);
 
   const getDeltaStyle = (current, previous) => {
     const delta = getDeltaValue(current, previous);
     if (delta > 0) return styles.summaryDeltaUp;
     if (delta < 0) return styles.summaryDeltaDown;
     return styles.summaryDeltaNeutral;
+  };
+
+  const getMetricNumericValue = (record, key) => {
+    if (!record) return 0;
+    if (key === 'steps') return parseInt(record.steps || 0, 10) || 0;
+    return parseMetricNumber(record[key]);
+  };
+
+  const formatMetricDisplayValue = (value, unit) => {
+    if (unit === 'steps') return `${Math.round(value)}`;
+    if (unit === 'kcal' || unit === 'min') return `${Math.round(value)} ${unit}`;
+    return `${value.toFixed(1)} ${unit}`;
   };
 
   useFocusEffect(
@@ -329,69 +355,79 @@ export default function HistoryScreen() {
                     showsVerticalScrollIndicator={false}
                   >
                     <Text style={styles.modalSectionTitle}>Resumo da Sessão</Text>
+                    <View style={styles.detailCardsWrap}>
+                      {[
+                        ...DETAIL_METRICS,
+                        ...(getActivityType(selectedRecord) === 'walk' && selectedRecord.steps
+                          ? [{ key: 'steps', label: 'Passos', unit: 'steps', color: '#A78BFA' }]
+                          : []),
+                      ].map((metric) => {
+                        const currentValue = getMetricNumericValue(selectedRecord, metric.key);
+                        const previousValue = getMetricNumericValue(previousRecord, metric.key);
+                        const maxValue = Math.max(currentValue, previousValue, 1);
+                        const currentRatio = currentValue / maxValue;
+                        const previousRatio = previousRecord ? previousValue / maxValue : 0;
 
-                    <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Tempo</Text>
-                      <Text style={styles.summaryValue}>{selectedRecord.time} min</Text>
-                    </View>
-                    <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Distância</Text>
-                      <Text style={styles.summaryValue}>{selectedRecord.distance} km</Text>
-                    </View>
-                    <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Velocidade</Text>
-                      <Text style={styles.summaryValue}>{selectedRecord.speed} km/h</Text>
-                    </View>
-                    <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Calorias</Text>
-                      <Text style={styles.summaryValue}>{selectedRecord.calories} kcal</Text>
-                    </View>
-                    {getActivityType(selectedRecord) === 'walk' && selectedRecord.steps ? (
-                      <View style={styles.summaryRow}>
-                        <Text style={styles.summaryLabel}>Passos</Text>
-                        <Text style={styles.summaryValue}>{selectedRecord.steps}</Text>
-                      </View>
-                    ) : null}
+                        return (
+                          <View style={styles.detailMetricCard} key={metric.key}>
+                            <View style={styles.detailMetricTop}>
+                              <Text style={styles.detailMetricLabel}>{metric.label}</Text>
+                              {previousRecord ? (
+                                <Text
+                                  style={[
+                                    styles.detailMetricDelta,
+                                    getDeltaStyle(currentValue, previousValue),
+                                  ]}
+                                >
+                                  {getDeltaText(currentValue, previousValue, metric.unit === 'steps' ? '' : metric.unit)}
+                                </Text>
+                              ) : (
+                                <Text style={styles.detailMetricDeltaMuted}>Sem compara??o</Text>
+                              )}
+                            </View>
 
-                    <View style={styles.sectionDivider}>
-                      <View style={styles.sectionDividerLine} />
+                            <View style={styles.detailBarLine}>
+                              <Text style={styles.detailBarLabel}>Sessão selecionada</Text>
+                              <View style={styles.detailBarTrack}>
+                                <View
+                                  style={[
+                                    styles.detailBarFill,
+                                    { width: `${Math.min(Math.max(currentRatio, 0), 1) * 100}%`, backgroundColor: metric.color },
+                                  ]}
+                                />
+                              </View>
+                              <Text style={styles.detailBarValue}>
+                                {formatMetricDisplayValue(currentValue, metric.unit)}
+                              </Text>
+                            </View>
+
+                            {previousRecord ? (
+                              <View style={styles.detailBarLine}>
+                                <Text style={styles.detailBarLabel}>Sessão anterior</Text>
+                                <View style={styles.detailBarTrack}>
+                                  <View
+                                    style={[
+                                      styles.detailBarFill,
+                                      styles.detailBarFillPrevious,
+                                      { width: `${Math.min(Math.max(previousRatio, 0), 1) * 100}%` },
+                                    ]}
+                                  />
+                                </View>
+                                <Text style={styles.detailBarValue}>
+                                  {formatMetricDisplayValue(previousValue, metric.unit)}
+                                </Text>
+                              </View>
+                            ) : null}
+                          </View>
+                        );
+                      })}
                     </View>
 
-                    {previousRecord ? (
-                      <>
-                        <Text style={styles.modalSectionTitle}>
-                          Vs Sessão Anterior de {getRecordTitle(getActivityType(selectedRecord))}
-                        </Text>
-                        <View style={styles.summaryRow}>
-                          <Text style={styles.summaryLabel}>Variação de tempo</Text>
-                          <Text style={[styles.summaryDelta, getDeltaStyle(selectedRecord.time, previousRecord.time)]}>
-                            {getDeltaText(selectedRecord.time, previousRecord.time, 'min')}
-                          </Text>
-                        </View>
-                        <View style={styles.summaryRow}>
-                          <Text style={styles.summaryLabel}>Variação de distância</Text>
-                          <Text style={[styles.summaryDelta, getDeltaStyle(selectedRecord.distance, previousRecord.distance)]}>
-                            {getDeltaText(selectedRecord.distance, previousRecord.distance, 'km')}
-                          </Text>
-                        </View>
-                        <View style={styles.summaryRow}>
-                          <Text style={styles.summaryLabel}>Variação de velocidade</Text>
-                          <Text style={[styles.summaryDelta, getDeltaStyle(selectedRecord.speed, previousRecord.speed)]}>
-                            {getDeltaText(selectedRecord.speed, previousRecord.speed, 'km/h')}
-                          </Text>
-                        </View>
-                        <View style={styles.summaryRow}>
-                          <Text style={styles.summaryLabel}>Variação de calorias</Text>
-                          <Text style={[styles.summaryDelta, getDeltaStyle(selectedRecord.calories, previousRecord.calories)]}>
-                            {getDeltaText(selectedRecord.calories, previousRecord.calories, 'kcal')}
-                          </Text>
-                        </View>
-                      </>
-                    ) : (
+                    {!previousRecord ? (
                       <Text style={styles.noPreviousText}>
                         Ainda não há sessão anterior de {getRecordTitle(getActivityType(selectedRecord)).toLowerCase()} para comparar.
                       </Text>
-                    )}
+                    ) : null}
 
                     <View style={styles.modalActions}>
                       <TouchableOpacity
@@ -608,6 +644,70 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: 2,
     letterSpacing: 0.2,
+  },
+  detailCardsWrap: {
+    gap: 10,
+  },
+  detailMetricCard: {
+    backgroundColor: '#0B1220',
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+  },
+  detailMetricTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  detailMetricLabel: {
+    color: '#E2E8F0',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  detailMetricDelta: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  detailMetricDeltaMuted: {
+    fontSize: 12,
+    color: '#94A3B8',
+    fontWeight: '600',
+  },
+  detailBarLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+  },
+  detailBarLabel: {
+    width: 108,
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  detailBarTrack: {
+    flex: 1,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#1E293B',
+    overflow: 'hidden',
+  },
+  detailBarFill: {
+    height: '100%',
+    borderRadius: 999,
+  },
+  detailBarFillPrevious: {
+    backgroundColor: '#64748B',
+  },
+  detailBarValue: {
+    minWidth: 74,
+    textAlign: 'right',
+    color: '#E2E8F0',
+    fontSize: 11,
+    fontWeight: '700',
   },
   summaryRow: {
     flexDirection: 'row',
