@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect, useRef } from 'react';
+﻿import React, { useState, useContext, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -14,7 +14,7 @@ import { LineChart } from 'react-native-gifted-charts';
 import { BikeContext } from '../context/BikeContext';
 
 const PERFORMANCE_METRICS = [
-  { key: 'distance', label: 'Melhor DistÃ¢ncia', unit: 'km' },
+  { key: 'distance', label: 'Melhor Distância', unit: 'km' },
   { key: 'time', label: 'Melhor Tempo', unit: 'min' },
   { key: 'calories', label: 'Melhores Calorias', unit: 'kcal' },
   { key: 'speed', label: 'Melhor Velocidade', unit: 'km/h' },
@@ -35,14 +35,14 @@ const hexToRgba = (hex, alpha) => {
 };
 
 const COMPARE_OPTIONS = [
-  { key: 'distance', label: 'DistÃ¢ncia (km)' },
+  { key: 'distance', label: 'Distância (km)' },
   { key: 'time', label: 'Tempo (min)' },
   { key: 'calories', label: 'Calorias' },
   { key: 'speed', label: 'Velocidade (km/h)' },
 ];
 
 const SESSION_COMPARISON_METRICS = [
-  { key: 'distance', label: 'DistÃ¢ncia', unit: 'km' },
+  { key: 'distance', label: 'Distância', unit: 'km' },
   { key: 'time', label: 'Tempo', unit: 'min' },
   { key: 'calories', label: 'Calorias', unit: 'kcal' },
   { key: 'speed', label: 'Velocidade', unit: 'km/h' },
@@ -55,7 +55,6 @@ export default function StatisticsScreen() {
   const [compareMetric, setCompareMetric] = useState('distance');
   const [bestActivityType, setBestActivityType] = useState('indoor');
   const [selectedMonths, setSelectedMonths] = useState({});
-  const [expandedComparisonType, setExpandedComparisonType] = useState('indoor');
   const [headerHeight, setHeaderHeight] = useState(0);
   const comparisonReveal = useRef(new Animated.Value(0)).current;
   const { refreshTrigger } = useContext(BikeContext);
@@ -80,12 +79,13 @@ export default function StatisticsScreen() {
     }
   };
 
-  useEffect(() => {
-    const visibleTypes = filterType === 'all' ? ['indoor', 'walk'] : [filterType];
-    if (!visibleTypes.includes(expandedComparisonType)) {
-      setExpandedComparisonType(visibleTypes[0]);
-    }
-  }, [filterType, expandedComparisonType]);
+  const parseMetricNumber = (value) => {
+    if (value === null || value === undefined || value === '') return 0;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    const normalized = String(value).trim().replace(',', '.').replace(/[^\d.-]/g, '');
+    const parsed = parseFloat(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
 
   useEffect(() => {
     comparisonReveal.setValue(0);
@@ -139,7 +139,7 @@ export default function StatisticsScreen() {
   };
 
   const formatMetricValue = (value, unit) => {
-    const numeric = parseFloat(value || 0);
+    const numeric = parseMetricNumber(value);
     if (unit === 'kcal' || unit === 'min') return `${Math.round(numeric)} ${unit}`;
     return `${numeric.toFixed(1)} ${unit}`;
   };
@@ -149,8 +149,8 @@ export default function StatisticsScreen() {
     if (!pair) return null;
 
     return SESSION_COMPARISON_METRICS.map((metric) => {
-      const latestValue = parseFloat(pair.latest[metric.key] || 0);
-      const previousValue = parseFloat(pair.previous[metric.key] || 0);
+      const latestValue = parseMetricNumber(pair.latest[metric.key]);
+      const previousValue = parseMetricNumber(pair.previous[metric.key]);
       const delta = latestValue - previousValue;
       const deltaPct = previousValue === 0 ? null : (delta / previousValue) * 100;
 
@@ -247,7 +247,7 @@ export default function StatisticsScreen() {
     }
 
     return {
-      text: 'Sem mudanÃ§a',
+      text: 'Sem mudança',
       style: styles.changeNeutral,
     };
   };
@@ -259,7 +259,6 @@ export default function StatisticsScreen() {
       previousRatio: metric.previousValue / maxValue,
     };
   };
-
   const selectedMetric = PERFORMANCE_METRICS.find((metric) => metric.key === compareMetric)
     || PERFORMANCE_METRICS[0];
   const indoorBestSeries = buildBestMetricSeries(compareMetric, 'indoor');
@@ -267,7 +266,7 @@ export default function StatisticsScreen() {
   const activeBestSeries = bestActivityType === 'walk' ? walkBestSeries : indoorBestSeries;
   const activeBestColor =
     bestActivityType === 'walk' ? ACTIVITY_COLORS.walk : ACTIVITY_COLORS.indoor;
-  const activeBestLabel = bestActivityType === 'walk' ? 'Caminhada' : 'Bic. ErgomÃ©trica';
+  const activeBestLabel = bestActivityType === 'walk' ? 'Caminhada' : 'Bic. Ergom\u00e9trica';
   const activeBestMaxValue = Math.max(...activeBestSeries.data.map((point) => point.value), 1);
   const frequencyTypes = filterType === 'all' ? ['indoor', 'walk'] : [filterType];
 
@@ -343,15 +342,14 @@ export default function StatisticsScreen() {
       highlightRequestId: Date.now(),
     });
   };
-
   return (
     <View style={styles.container}>
       <View
         style={styles.header}
         onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}
       >
-        <Text style={styles.headerTitle}>EstatÃ­sticas</Text>
-        <Text style={styles.headerSubtitle}>Insights das suas sessÃµes</Text>
+        <Text style={styles.headerTitle}>Estatísticas</Text>
+        <Text style={styles.headerSubtitle}>Insights das suas sessões</Text>
       </View>
       <ScrollView
         style={styles.scrollView}
@@ -361,8 +359,6 @@ export default function StatisticsScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-
-
         <View style={styles.filterSection}>
           {['all', 'indoor', 'walk'].map((type) => (
             <TouchableOpacity
@@ -371,32 +367,32 @@ export default function StatisticsScreen() {
               onPress={() => setFilterType(type)}
             >
               <Text numberOfLines={1} style={[styles.filterText, filterType === type && styles.filterTextActive]}>
-                {type === 'all' ? 'Todos' : type === 'indoor' ? 'Bic. ErgomÃ©trica' : 'Caminhada'}
+                {type === 'all' ? 'Todos' : type === 'indoor' ? 'Bic. Ergométrica' : 'Caminhada'}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {records.length === 0 ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Comparação dos últimos Exercícios</Text>
+          {records.length === 0 ? (
             <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>Sem dados ainda</Text>
-            <Text style={styles.emptySubtext}>Adicione exercÃ­cios para desbloquear insights.</Text>
-          </View>
-        ) : (
-          <>            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>ComparaÃ§Ã£o dos Ãšltimos ExercÃ­cios</Text>
+              <Text style={styles.emptyText}>Sem dados ainda</Text>
+              <Text style={styles.emptySubtext}>Adicione exercícios para desbloquear insights.</Text>
+            </View>
+          ) : (
+            <>
               {(filterType === 'all' ? ['indoor', 'walk'] : [filterType]).map((type) => {
                 const pair = getLastTwoByType(type);
                 const comparison = buildSessionComparison(type);
-                const isExpanded = expandedComparisonType === type;
-                const typeLabel = type === 'indoor' ? 'Bic. ErgomÃ©trica' : 'Caminhada';
+                const typeLabel = type === 'indoor' ? 'Bic. Ergométrica' : 'Caminhada';
 
                 if (!pair || !comparison) {
                   return (
                     <View style={styles.comparisonCard} key={type}>
                       <Text style={styles.comparisonTitle}>{typeLabel}</Text>
                       <Text style={styles.comparisonEmptyText}>
-                        Adicione pelo menos 2 sessÃµes de {type === 'indoor' ? 'bic. ergomÃ©trica' : 'caminhada'} para comparar desempenho.
+                        Adicione pelo menos 2 sessões de {type === 'indoor' ? 'bic. ergométrica' : 'caminhada'} para comparar desempenho.
                       </Text>
                     </View>
                   );
@@ -404,13 +400,7 @@ export default function StatisticsScreen() {
 
                 return (
                   <View style={styles.comparisonCard} key={type}>
-                    <TouchableOpacity
-                      activeOpacity={0.85}
-                      style={styles.comparisonHeaderRow}
-                      onPress={() =>
-                        setExpandedComparisonType((prev) => (prev === type ? null : type))
-                      }
-                    >
+                    <View style={styles.comparisonHeaderRow}>
                       <View>
                         <Text style={styles.comparisonTitle}>{typeLabel}</Text>
                         <Text style={styles.comparisonSubtitle}>
@@ -419,11 +409,10 @@ export default function StatisticsScreen() {
                       </View>
                       <View style={styles.comparisonHeaderRight}>
                         <View style={[styles.comparisonDot, { backgroundColor: ACTIVITY_COLORS[type] }]} />
-                        <Text style={styles.comparisonToggleText}>{isExpanded ? 'Ocultar' : 'Detalhar'}</Text>
                       </View>
-                    </TouchableOpacity>
+                    </View>
 
-                    {isExpanded && (
+                    
                       <Animated.View
                         style={[
                           styles.comparisonMetricsWrap,
@@ -451,13 +440,13 @@ export default function StatisticsScreen() {
                               </View>
 
                               <View style={styles.comparisonBarLine}>
-                                <Text style={styles.comparisonBarLabel}>Ãšltimo</Text>
+                                <Text style={styles.comparisonBarLabel}>Último</Text>
                                 <View style={styles.comparisonBarTrack}>
                                   <View
                                     style={[
                                       styles.comparisonBarFill,
                                       styles.comparisonBarFillLatest,
-                                      { width: `${Math.max(latestRatio * 100, 8)}%` },
+                                      { width: `${Math.min(Math.max(latestRatio, 0), 1) * 100}%` },
                                     ]}
                                   />
                                 </View>
@@ -473,7 +462,7 @@ export default function StatisticsScreen() {
                                     style={[
                                       styles.comparisonBarFill,
                                       styles.comparisonBarFillPrevious,
-                                      { width: `${Math.max(previousRatio * 100, 8)}%` },
+                                      { width: `${Math.min(Math.max(previousRatio, 0), 1) * 100}%` },
                                     ]}
                                   />
                                 </View>
@@ -485,59 +474,60 @@ export default function StatisticsScreen() {
                           );
                         })}
                       </Animated.View>
-                    )}
                   </View>
                 );
               })}
-            </View>
+            </>
+          )}
+        </View>
 
-            <View style={styles.section}>
-              <View style={styles.bestToggle}>
-                {['indoor', 'walk'].map((type) => {
-                  const isActive = bestActivityType === type;
-                  return (
-                    <TouchableOpacity
-                      key={type}
-                      style={[styles.bestTab, isActive && styles.bestTabActive]}
-                      onPress={() => setBestActivityType(type)}
-                    >
-                      <Text style={[styles.bestTabText, isActive && styles.bestTabTextActive]}>
-                        {type === 'walk' ? 'Caminhada' : 'Bic. ErgomÃ©trica'}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              <View style={styles.compareTabs}>
-                {COMPARE_OPTIONS.map((option) => (
-                  <TouchableOpacity
-                    key={option.key}
-                    style={[
-                      styles.compareTab,
-                      compareMetric === option.key && styles.compareTabActive,
-                    ]}
-                    onPress={() => setCompareMetric(option.key)}
-                  >
-                    <Text
-                      style={[
-                        styles.compareTabText,
-                        compareMetric === option.key && styles.compareTabTextActive,
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+        <View style={styles.section}>
+          <View style={styles.bestToggle}>
+            {['indoor', 'walk'].map((type) => {
+              const isActive = bestActivityType === type;
+              return (
+                <TouchableOpacity
+                  key={type}
+                  style={[styles.bestTab, isActive && styles.bestTabActive]}
+                  onPress={() => setBestActivityType(type)}
+                >
+                  <Text style={[styles.bestTabText, isActive && styles.bestTabTextActive]}>
+                    {type === 'walk' ? 'Caminhada' : 'Bic. Ergométrica'}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <View style={styles.compareTabs}>
+            {COMPARE_OPTIONS.map((option) => (
+              <TouchableOpacity
+                key={option.key}
+                style={[
+                  styles.compareTab,
+                  compareMetric === option.key && styles.compareTabActive,
+                ]}
+                onPress={() => setCompareMetric(option.key)}
+              >
+                <Text
+                  style={[
+                    styles.compareTabText,
+                    compareMetric === option.key && styles.compareTabTextActive,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
               
-              <View style={styles.chartCard}>
-                {!activeBestSeries.hasData ? (
-                  <View style={styles.emptyChart}>
-                    <Text style={styles.emptyChartText}>
-                      {bestActivityType === 'walk' ? 'Sem registros de caminhada' : 'Sem registros de bic. ergomÃ©trica'}
-                    </Text>
-                  </View>
-                ) : (
+          <View style={styles.chartCard}>
+            {!activeBestSeries.hasData ? (
+              <View style={styles.emptyChart}>
+                <Text style={styles.emptyChartText}>
+                  {bestActivityType === 'walk' ? 'Sem registros de caminhada' : 'Sem registros de bic. ergométrica'}
+                </Text>
+              </View>
+            ) : (
                   <LineChart
                     data={activeBestSeries.data}
                     areaChart
@@ -590,9 +580,9 @@ export default function StatisticsScreen() {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>FrequÃªncia de ExercÃ­cios</Text>
+              <Text style={styles.sectionTitle}>Frequência de Exercícios</Text>
               {frequencyTypes.map((type) => {
-                const label = type === 'walk' ? 'Caminhada' : 'Bic. ErgomÃ©trica';
+                const label = type === 'walk' ? 'Caminhada' : 'Bic. Ergométrica';
                 const color = ACTIVITY_COLORS[type];
                 const months = getAvailableMonths(type);
                 const selectedMonth = months.includes(selectedMonths[type])
@@ -604,7 +594,7 @@ export default function StatisticsScreen() {
                   <View style={styles.heatmapCard} key={`heatmap-${type}`}>
                     <View style={styles.heatmapHeaderRow}>
                       <Text style={styles.heatmapTypeTitle}>{label}</Text>
-                      <Text style={styles.heatmapHint}>Toque em um mÃªs</Text>
+                      <Text style={styles.heatmapHint}>Toque em um mês</Text>
                     </View>
                     <ScrollView
                       horizontal
@@ -692,10 +682,8 @@ export default function StatisticsScreen() {
                 );
               })}
             </View>
-          </>
-        )}
 
-        <View style={{ height: 40 }} />
+            <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
@@ -1116,4 +1104,3 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 });
-
