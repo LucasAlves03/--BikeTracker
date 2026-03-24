@@ -154,7 +154,6 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    if (!records.length) return;
     calculateWeeklyStats(records);
   }, [weeklyGoalsByType]);
 
@@ -206,7 +205,7 @@ export default function HomeScreen() {
       setWeeklyGoalsByType(nextGoals);
       await AsyncStorage.setItem(WEEKLY_GOALS_KEY, JSON.stringify(nextGoals));
       setShowGoalsSetup(false);
-      await calculateWeeklyStats(records, nextGoals);
+      await calculateWeeklyStats(records, nextGoals, { allowCelebration: true });
     } catch (error) {
       console.error('Error saving weekly goals:', error);
     }
@@ -247,6 +246,18 @@ export default function HomeScreen() {
       const monday = getMondayOfWeek();
       
       if (!lastResetDate || new Date(lastResetDate) < monday) {
+        if (lastResetDate) {
+          const completedIndoor = await AsyncStorage.getItem('goalsCompletedThisWeek:indoor');
+          const completedWalk = await AsyncStorage.getItem('goalsCompletedThisWeek:walk');
+
+          if (completedIndoor !== 'true') {
+            await NotificationService.addGoalMissedNotification('indoor');
+          }
+          if (completedWalk !== 'true') {
+            await NotificationService.addGoalMissedNotification('walk');
+          }
+        }
+
         await AsyncStorage.setItem('lastWeekReset', monday.toISOString());
         await AsyncStorage.setItem('goalsCompletedThisWeek:indoor', 'false');
         await AsyncStorage.setItem('goalsCompletedThisWeek:walk', 'false');
@@ -283,7 +294,40 @@ export default function HomeScreen() {
     }
   };
 
-  const calculateWeeklyStats = async (allRecords, goalsByType = weeklyGoalsByType) => {
+  const areGoalsCompletedForType = (type, stats, goalsByType = weeklyGoalsByType) => {
+    const goals = goalsByType[type];
+    return (
+      parseDecimalValue(stats.totalDistance) >= parseDecimalValue(goals.distance) &&
+      parseDecimalValue(stats.totalTime) >= parseDecimalValue(goals.time) &&
+      parseDecimalValue(stats.totalCalories) >= parseDecimalValue(goals.calories) &&
+      (type !== 'walk' || parseStepsValue(stats.totalSteps) >= parseStepsValue(goals.steps || 0))
+    );
+  };
+
+  const syncGoalCompletionState = async (type, isCompletedNow, options = { allowCelebration: true }) => {
+    const wasCompleted = goalsCompletedByType[type];
+    if (isCompletedNow === wasCompleted) return;
+
+    setGoalsCompletedByType((prev) => ({ ...prev, [type]: isCompletedNow }));
+    await AsyncStorage.setItem(`goalsCompletedThisWeek:${type}`, isCompletedNow ? 'true' : 'false');
+
+    if (isCompletedNow && !wasCompleted && options.allowCelebration) {
+      setShowCelebration(true);
+      setCelebrationType(type);
+      await NotificationService.addGoalCompletedNotification();
+      return;
+    }
+
+    if (!isCompletedNow && wasCompleted && showCelebration && celebrationType === type) {
+      setShowCelebration(false);
+    }
+  };
+
+  const calculateWeeklyStats = async (
+    allRecords,
+    goalsByType = weeklyGoalsByType,
+    options = { allowCelebration: true }
+  ) => {
     const monday = getMondayOfWeek();
     const sunday = getSundayOfWeek();
 
@@ -321,26 +365,11 @@ export default function HomeScreen() {
 
     setWeeklyStatsByType(nextWeeklyStatsByType);
 
-    await checkGoalsCompletion('indoor', nextWeeklyStatsByType.indoor, goalsByType);
-    await checkGoalsCompletion('walk', nextWeeklyStatsByType.walk, goalsByType);
-  };
+    const indoorCompletedNow = areGoalsCompletedForType('indoor', nextWeeklyStatsByType.indoor, goalsByType);
+    const walkCompletedNow = areGoalsCompletedForType('walk', nextWeeklyStatsByType.walk, goalsByType);
 
-  const checkGoalsCompletion = async (type, stats, goalsByType = weeklyGoalsByType) => {
-    const goals = goalsByType[type];
-    const completed = goalsCompletedByType[type];
-    const allGoalsCompleted = 
-      parseDecimalValue(stats.totalDistance) >= parseDecimalValue(goals.distance) &&
-      parseDecimalValue(stats.totalTime) >= parseDecimalValue(goals.time) &&
-      parseDecimalValue(stats.totalCalories) >= parseDecimalValue(goals.calories) &&
-      (type !== 'walk' || parseStepsValue(stats.totalSteps) >= parseStepsValue(goals.steps || 0));
-
-    if (allGoalsCompleted && !completed) {
-      setShowCelebration(true);
-      setCelebrationType(type);
-      setGoalsCompletedByType((prev) => ({ ...prev, [type]: true }));
-      await AsyncStorage.setItem(`goalsCompletedThisWeek:${type}`, 'true');
-      await NotificationService.addGoalCompletedNotification();
-    }
+    await syncGoalCompletionState('indoor', indoorCompletedNow, options);
+    await syncGoalCompletionState('walk', walkCompletedNow, options);
   };
 
 
