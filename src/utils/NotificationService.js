@@ -44,13 +44,20 @@ export const NotificationService = {
       'Treino Concluído! 💪',
       `${stats.time} min • ${stats.distance} km • ${stats.calories} kcal`
     );
-  },
-
-  async addGoalCompletedNotification() {
+  },  async addGoalCompletedNotification() {
     return await this.addNotification(
       'goal_completed',
       'Metas Semanais Completas! 🎯',
       'Parabéns! Você atingiu todas as suas metas desta semana!'
+    );
+  },
+
+  async addGoalMissedNotification(type) {
+    const label = type === 'walk' ? 'caminhada' : 'bicicleta ergometrica';
+    return await this.addNotification(
+      'goal_missed',
+      'Semana Encerrada',
+      `As metas semanais de ${label} nao foram concluidas. Ajuste suas metas e tente novamente.`
     );
   },
 
