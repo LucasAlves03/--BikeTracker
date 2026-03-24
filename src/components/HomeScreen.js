@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,8 +7,9 @@ import {
   Dimensions,
   Modal,
   TouchableOpacity,
-  TextInput,
   ImageBackground,
+  Animated,
+  Easing,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -23,7 +24,6 @@ import WeeklyGoalsSetupModal from './WeeklyGoalsSetupModal';
 
 
 const { width } = Dimensions.get('window');
-const FORCE_SHOW_WEEKLY_GOALS_PREVIEW = true;
 const WEEKLY_GOALS_KEY = 'weeklyGoalsByType';
 const DEFAULT_WEEKLY_GOALS = {
   indoor: {
@@ -43,6 +43,36 @@ const ACTIVITY_HEADER_IMAGES = {
   indoor: require('../../assets/header_indoor.png'),
   walk: require('../../assets/header_walk.png'),
 };
+const CELEBRATION_CARD_CONFIG = [
+  {
+    key: 'time',
+    label: 'Tempo ativo',
+    icon: 'time-outline',
+    color: '#60A5FA',
+    targetLabel: 'Meta semanal',
+  },
+  {
+    key: 'calories',
+    label: 'Calorias',
+    icon: 'flame-outline',
+    color: '#F97316',
+    targetLabel: 'Meta semanal',
+  },
+  {
+    key: 'distance',
+    label: 'Distancia',
+    icon: 'map-outline',
+    color: '#22D3EE',
+    targetLabel: 'Meta semanal',
+  },
+  {
+    key: 'averageSpeed',
+    label: 'Velocidade media',
+    icon: 'speedometer-outline',
+    color: '#34D399',
+    targetLabel: 'Ritmo da semana',
+  },
+];
 
 const parseDecimalValue = (value) => {
   if (value === null || value === undefined || value === '') return 0;
@@ -63,13 +93,9 @@ const parseStepsValue = (value) => {
 const formatIntegerPtBr = (value) => new Intl.NumberFormat('pt-BR').format(Math.round(value || 0));
 
 export default function HomeScreen() {
-  const USER_NAME_KEY = 'userName';
   const [records, setRecords] = useState([]);
   const [activeTracker, setActiveTracker] = useState('indoor');
   const [greeting, setGreeting] = useState('Painel');
-  const [userName, setUserName] = useState('');
-  const [nameInput, setNameInput] = useState('');
-  const [isEditingName, setIsEditingName] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(0);
   const [showGoalsSetup, setShowGoalsSetup] = useState(false);
   const [weeklyStatsByType, setWeeklyStatsByType] = useState({
@@ -93,25 +119,37 @@ export default function HomeScreen() {
   const [weeklyGoalsByType, setWeeklyGoalsByType] = useState(DEFAULT_WEEKLY_GOALS);
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationType, setCelebrationType] = useState('indoor');
+  const [celebrationPercents, setCelebrationPercents] = useState(() =>
+    CELEBRATION_CARD_CONFIG.reduce((acc, card) => ({ ...acc, [card.key]: 0 }), {})
+  );
   const [goalsCompletedByType, setGoalsCompletedByType] = useState({
     indoor: false,
     walk: false,
   });
+  const titleReveal = useRef(new Animated.Value(0)).current;
+  const messageReveal = useRef(new Animated.Value(0)).current;
+  const cardRevealAnims = useRef(
+    CELEBRATION_CARD_CONFIG.reduce((acc, card) => {
+      acc[card.key] = new Animated.Value(0);
+      return acc;
+    }, {})
+  ).current;
+  const cardProgressAnims = useRef(
+    CELEBRATION_CARD_CONFIG.reduce((acc, card) => {
+      acc[card.key] = new Animated.Value(0);
+      return acc;
+    }, {})
+  ).current;
   const { refreshTrigger, triggerNotificationRefresh } = useContext(BikeContext);
 
   useFocusEffect(
     React.useCallback(() => {
       loadData();
       checkWeekReset();
-      if (FORCE_SHOW_WEEKLY_GOALS_PREVIEW) {
-        setCelebrationType('indoor');
-        setShowCelebration(true);
-      }
     }, [refreshTrigger])
   );
 
   useEffect(() => {
-    loadUserName();
     loadWeeklyGoals();
   }, []);
 
@@ -120,36 +158,25 @@ export default function HomeScreen() {
     calculateWeeklyStats(records);
   }, [weeklyGoalsByType]);
 
+  useEffect(() => {
+    const listeners = CELEBRATION_CARD_CONFIG.map(({ key }) =>
+      cardProgressAnims[key].addListener(({ value }) => {
+        const nextPercent = Math.min(100, Math.round(value * 100));
+        setCelebrationPercents((prev) => (prev[key] === nextPercent ? prev : { ...prev, [key]: nextPercent }));
+      })
+    );
+
+    return () => {
+      CELEBRATION_CARD_CONFIG.forEach((_, index) => {
+        cardProgressAnims[CELEBRATION_CARD_CONFIG[index].key].removeListener(listeners[index]);
+      });
+    };
+  }, [cardProgressAnims]);
+
   const getGreetingForHour = (hour) => {
     if (hour >= 5 && hour < 12) return 'Bom dia';
     if (hour >= 12 && hour < 18) return 'Boa tarde';
     return 'Boa noite';
-  };
-
-  const loadUserName = async () => {
-    try {
-      const savedName = await AsyncStorage.getItem(USER_NAME_KEY);
-      const trimmedName = savedName?.trim();
-
-      if (trimmedName) {
-        setUserName(trimmedName);
-        setNameInput(trimmedName);
-      }
-    } catch (error) {
-      console.error('Error loading user name:', error);
-    }
-  };
-
-  const saveUserName = async () => {
-    const trimmedName = nameInput.trim();
-
-    try {
-      await AsyncStorage.setItem(USER_NAME_KEY, trimmedName);
-      setUserName(trimmedName);
-      setIsEditingName(false);
-    } catch (error) {
-      console.error('Error saving user name:', error);
-    }
   };
 
   const loadWeeklyGoals = async () => {
@@ -380,40 +407,98 @@ export default function HomeScreen() {
   const activeWeeklyGoals = weeklyGoalsByType[activeTracker];
   const celebrationStats = weeklyStatsByType[celebrationType];
   const celebrationGoals = weeklyGoalsByType[celebrationType];
-  const goalMetricCards = [
-    {
-      key: 'distance',
-      label: 'Distancia',
-      value: `${celebrationStats.totalDistance} km`,
-      target: `${celebrationGoals.distance} km`,
-      progress: getProgressPercentage(celebrationStats.totalDistance, celebrationGoals.distance),
-      icon: 'map-outline',
-    },
-    {
-      key: 'time',
-      label: 'Tempo',
-      value: `${celebrationStats.totalTime} min`,
-      target: `${celebrationGoals.time} min`,
-      progress: getProgressPercentage(celebrationStats.totalTime, celebrationGoals.time),
-      icon: 'time-outline',
-    },
-    {
-      key: 'calories',
-      label: 'Calorias',
-      value: `${celebrationStats.totalCalories} kcal`,
-      target: `${celebrationGoals.calories} kcal`,
-      progress: getProgressPercentage(celebrationStats.totalCalories, celebrationGoals.calories),
-      icon: 'flame-outline',
-    },
-    {
-      key: 'averageSpeed',
-      label: 'Vel. media',
-      value: `${celebrationStats.averageSpeed} km/h`,
-      target: 'Ritmo da semana',
-      progress: parseFloat(celebrationStats.averageSpeed || 0) > 0 ? 100 : 0,
-      icon: 'speedometer-outline',
-    },
-  ];
+  const goalMetricCards = useMemo(
+    () =>
+      CELEBRATION_CARD_CONFIG.map((card) => {
+        if (card.key === 'time') {
+          return {
+            ...card,
+            value: `${celebrationStats.totalTime} min`,
+            target: `${celebrationGoals.time} min`,
+            progress: getProgressPercentage(celebrationStats.totalTime, celebrationGoals.time),
+          };
+        }
+        if (card.key === 'calories') {
+          return {
+            ...card,
+            value: `${celebrationStats.totalCalories} kcal`,
+            target: `${celebrationGoals.calories} kcal`,
+            progress: getProgressPercentage(celebrationStats.totalCalories, celebrationGoals.calories),
+          };
+        }
+        if (card.key === 'distance') {
+          return {
+            ...card,
+            value: `${celebrationStats.totalDistance} km`,
+            target: `${celebrationGoals.distance} km`,
+            progress: getProgressPercentage(celebrationStats.totalDistance, celebrationGoals.distance),
+          };
+        }
+        return {
+          ...card,
+          value: `${celebrationStats.averageSpeed} km/h`,
+          target: card.targetLabel,
+          progress: parseFloat(celebrationStats.averageSpeed || 0) > 0 ? 100 : 0,
+        };
+      }),
+    [celebrationStats, celebrationGoals]
+  );
+  const celebrationSummary = `Essa semana voce se exercitou por ${celebrationStats.totalTime} minutos, queimou ${celebrationStats.totalCalories} calorias e percorreu ${celebrationStats.totalDistance} km com velocidade media de ${celebrationStats.averageSpeed} km/h.`;
+
+  useEffect(() => {
+    if (!showCelebration) return;
+
+    titleReveal.setValue(0);
+    messageReveal.setValue(0);
+    CELEBRATION_CARD_CONFIG.forEach(({ key }) => {
+      cardRevealAnims[key].setValue(0);
+      cardProgressAnims[key].setValue(0);
+    });
+    setCelebrationPercents(
+      CELEBRATION_CARD_CONFIG.reduce((acc, card) => ({ ...acc, [card.key]: 0 }), {})
+    );
+
+    const sequence = [
+      Animated.timing(titleReveal, {
+        toValue: 1,
+        duration: 380,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(messageReveal, {
+        toValue: 1,
+        duration: 380,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      ...goalMetricCards.map((card) =>
+        Animated.sequence([
+          Animated.timing(cardRevealAnims[card.key], {
+            toValue: 1,
+            duration: 320,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(cardProgressAnims[card.key], {
+            toValue: card.progress / 100,
+            duration: 900,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+          }),
+        ])
+      ),
+    ];
+
+    Animated.sequence(sequence).start();
+  }, [
+    showCelebration,
+    celebrationType,
+    goalMetricCards,
+    titleReveal,
+    messageReveal,
+    cardRevealAnims,
+    cardProgressAnims,
+  ]);
 
   return (
     <View style={styles.container}>
@@ -422,39 +507,7 @@ export default function HomeScreen() {
         onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}
       >
         <View>
-          <View style={styles.greetingRow}>
-            <Text style={styles.headerTitle}>{greeting}{!isEditingName && userName ? ',' : ''}</Text>
-            {isEditingName ? (
-              <TextInput
-                value={nameInput}
-                onChangeText={setNameInput}
-                placeholder="Seu nome"
-                placeholderTextColor="#94A3B8"
-                style={styles.inlineNameInput}
-                maxLength={24}
-                autoCapitalize="words"
-              />
-            ) : (
-              <Text style={styles.headerNameText}>{userName || 'Seu nome'}</Text>
-            )}
-            <TouchableOpacity
-              style={styles.editNameButton}
-              onPress={() => {
-                if (isEditingName) {
-                  saveUserName();
-                } else {
-                  setNameInput(userName);
-                  setIsEditingName(true);
-                }
-              }}
-            >
-              <Ionicons
-                name={isEditingName ? 'checkmark' : 'create-outline'}
-                size={18}
-                color="#E2E8F0"
-              />
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.headerTitle}>{greeting}</Text>
           <Text style={styles.headerSubtitle}>{formatDate(new Date())}</Text>
         </View>
         <NotificationBell/>
@@ -482,25 +535,18 @@ export default function HomeScreen() {
               style={styles.goalHeaderImage}
               imageStyle={styles.goalHeaderImageStyle}
               resizeMode="cover"
-            >
-              <View style={styles.goalHeaderOverlay}>
-                <View style={styles.goalBadge}>
-                  <Ionicons name="trophy-outline" size={14} color="#FCD34D" />
-                  <Text style={styles.goalBadgeText}>Meta Semanal Concluida</Text>
-                </View>
-                <Text style={styles.goalHeaderTitle}>{getTrackerLabel(celebrationType)}</Text>
-                <Text style={styles.goalHeaderSubtitle}>
-                  Voce bateu todas as metas desta semana.
-                </Text>
-              </View>
-            </ImageBackground>
+            />
 
             <ScrollView
               style={styles.goalBodyScroll}
               contentContainerStyle={styles.goalBody}
               showsVerticalScrollIndicator={false}
             >
-              <Text style={styles.goalSectionTitle}>Resumo da Semana</Text>
+              <View style={styles.goalBodyHeader}>
+                <Text style={styles.goalSectionTitle}>
+                  Resumo da semana ({getTrackerLabel(celebrationType)})
+                </Text>
+              </View>
               <View style={styles.goalMetricsGrid}>
                 {goalMetricCards.map((card) => (
                   <View key={card.key} style={styles.goalMetricCard}>
@@ -812,30 +858,6 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     textTransform: 'capitalize',
   },
-  greetingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  headerNameText: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#E2E8F0',
-  },
-  inlineNameInput: {
-    minWidth: 90,
-    maxWidth: 150,
-    borderBottomWidth: 1,
-    borderBottomColor: '#64748B',
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: '700',
-    paddingVertical: 0,
-    paddingHorizontal: 2,
-  },
-  editNameButton: {
-    padding: 6,
-  },
   glassCard: {
     marginHorizontal: 24,
     marginBottom: 24,
@@ -871,7 +893,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 24,
     paddingBottom: 10,
-    gap: 120,
+    gap: 170,
   },
   sectionTitleCompact: {
     fontSize: 20,
@@ -1017,12 +1039,13 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: 'center',
     
+    
   },
   
   celebrationTitle: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: '#d61919',
     paddingTop: 50,
 
   },
@@ -1101,52 +1124,23 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   goalHeaderImage: {
-    height: 340,
+    height: 300,
     justifyContent: 'flex-end',
   },
   goalHeaderImageStyle: {
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
   },
-  goalHeaderOverlay: {
-    paddingHorizontal: 18,
-    paddingBottom: 6,
-    paddingTop: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.62)',
+  goalBodyHeader: {
+    paddingTop: 5,
+    paddingBottom: 0,
+   
   },
-  goalBadge: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#3F3F46',
-    backgroundColor: 'rgba(10, 10, 10, 0.75)',
-    marginBottom: 10,
-  },
-  goalBadgeText: {
-    fontSize: 12,
-    color: '#F8FAFC',
-    fontWeight: '700',
-  },
-  goalHeaderTitle: {
-    fontSize: 28,
-    lineHeight: 32,
-    color: '#FFFFFF',
-    fontWeight: '800',
-  },
-  goalHeaderSubtitle: {
-    marginTop: 6,
-    fontSize: 13,
-    color: '#CBD5E1',
-  },
+ 
   goalBody: {
     backgroundColor: '#050505',
     paddingHorizontal: 14,
-    paddingTop: 10,
+    paddingTop: 14,
     paddingBottom: 12,
     gap: 8,
   },
@@ -1155,44 +1149,46 @@ const styles = StyleSheet.create({
     backgroundColor: '#050505',
   },
   goalSectionTitle: {
-    marginTop: 0,
-    marginBottom: 1,
-    fontSize: 20,
+    marginBottom: 4,
+    fontSize: 21,
     fontWeight: '700',
-    color: '#F8FAFC',
+    color: '#fff',
   },
   goalMetricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    rowGap: 10,
+    rowGap: 14,
     columnGap: 10,
   },
   goalMetricCard: {
     width: '47%',
     aspectRatio: 1,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#1F2937',
+    borderRadius: 15,
     backgroundColor: '#0B0B0B',
     paddingVertical: 10,
     paddingHorizontal: 10,
     justifyContent: 'space-between',
+    borderStyle: 'solid',
+    borderWidth: 1,
+    borderColor: '#282828d1'
   },
   goalMetricHeader: {
+   
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     marginBottom: 2,
   },
   goalMetricLabel: {
-    fontSize: 12,
-    color: '#CBD5E1',
+    fontSize: 14,
+    color: '#fff',
     fontWeight: '600',
+    
   },
   goalMetricValue: {
-    fontSize: 18,
-    color: '#FFFFFF',
+    fontSize: 16,
+    color: '#ff581b',
     fontWeight: '800',
   },
   goalMetricTarget: {
@@ -1210,25 +1206,25 @@ const styles = StyleSheet.create({
   goalMetricFill: {
     height: '100%',
     borderRadius: 999,
-    backgroundColor: '#22D3EE',
+    backgroundColor: '#ff581b',
   },
   goalMetricPercent: {
     marginTop: 6,
     fontSize: 12,
-    color: '#BAE6FD',
+    color: '#ff581b',
     fontWeight: '700',
   },
   goalActions: {
-    marginTop: 4,
+    marginTop: 15,
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
   },
   goalGhostButton: {
     flex: 1,
-    minHeight: 44,
+    minHeight: 40,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#4e4e4f80',
     backgroundColor: '#111111',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1242,13 +1238,13 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 44,
     borderRadius: 10,
-    backgroundColor: '#22D3EE',
+    backgroundColor: '#0683cc',
     alignItems: 'center',
     justifyContent: 'center',
   },
   goalPrimaryButtonText: {
-    color: '#03111A',
-    fontWeight: '800',
+    color: '#fff',
+    fontWeight: '700',
     fontSize: 14,
   },
 });
