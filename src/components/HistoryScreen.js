@@ -12,9 +12,6 @@ import {
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
-import * as DocumentPicker from 'expo-document-picker';
 import { BikeContext } from '../context/BikeContext';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
@@ -39,7 +36,7 @@ export default function HistoryScreen() {
   const [headerHeight, setHeaderHeight] = useState(0);
   const scrollViewRef = useRef(null);
   const cardPositionsRef = useRef({});
-  const { refreshTrigger, triggerRefresh } = useContext(BikeContext);
+  const { refreshTrigger } = useContext(BikeContext);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -216,176 +213,6 @@ export default function HistoryScreen() {
 
   const previousRecord = getPreviousRecord(selectedRecord);
 
-  const getValidDate = (value) => {
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return new Date();
-    return parsed;
-  };
-
-  const sanitizeRecord = (record, index) => {
-    if (!record || typeof record !== 'object') return null;
-
-    const date = getValidDate(record.date);
-    const activityType = record.activityType === 'walk' ? 'walk' : 'indoor';
-    const rawId = record.id ?? `${date.getTime()}-${index}`;
-    const id = String(rawId);
-
-    return {
-      ...record,
-      id,
-      activityType,
-      date: date.toISOString(),
-      displayDate: record.displayDate || date.toLocaleDateString('pt-BR', {
-        weekday: 'short',
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      }),
-      displayTime: record.displayTime || date.toLocaleTimeString('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-    };
-  };
-
-  const sortRecordsByDateDesc = (list) =>
-    [...list].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-  const extractImportedRecords = (payload) => {
-    if (Array.isArray(payload)) return payload;
-    if (payload && Array.isArray(payload.records)) return payload.records;
-    return null;
-  };
-
-  const saveRecords = async (nextRecords) => {
-    await AsyncStorage.setItem('bikeRecords', JSON.stringify(nextRecords));
-    setRecords(nextRecords);
-    triggerRefresh();
-  };
-
-  const exportHistoryToJson = async () => {
-    try {
-      const payload = {
-        app: 'BikeTracker',
-        schemaVersion: 1,
-        exportedAt: new Date().toISOString(),
-        records,
-      };
-      const safeTimestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const fileName = `bike-backup-${safeTimestamp}.json`;
-      const directory = FileSystem.documentDirectory;
-
-      if (!directory) {
-        Alert.alert('Erro', 'Não foi possível acessar a pasta de documentos.');
-        return;
-      }
-
-      const fileUri = `${directory}${fileName}`;
-      await FileSystem.writeAsStringAsync(fileUri, JSON.stringify(payload, null, 2), {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: 'application/json',
-          dialogTitle: 'Exportar backup do histórico',
-          UTI: 'public.json',
-        });
-      }
-
-      Alert.alert(
-        'Backup criado',
-        `Arquivo gerado com ${records.length} sessões. Guarde o JSON em local seguro.`
-      );
-    } catch (error) {
-      console.error('Error exporting history:', error);
-      Alert.alert('Erro', 'Não foi possível exportar o backup.');
-    }
-  };
-
-  const applyImportedRecords = async (importedRecords, mode) => {
-    const sanitized = importedRecords
-      .map((item, index) => sanitizeRecord(item, index))
-      .filter(Boolean);
-
-    if (!sanitized.length) {
-      Alert.alert('Arquivo inválido', 'O arquivo não contém sessões válidas.');
-      return;
-    }
-
-    let nextRecords;
-    if (mode === 'replace') {
-      nextRecords = sortRecordsByDateDesc(sanitized);
-    } else {
-      const mergedMap = new Map(records.map((record) => [String(record.id), record]));
-      sanitized.forEach((record) => mergedMap.set(record.id, record));
-      nextRecords = sortRecordsByDateDesc(Array.from(mergedMap.values()));
-    }
-
-    await saveRecords(nextRecords);
-
-    Alert.alert(
-      'Importação concluída',
-      `Agora você tem ${nextRecords.length} sessões no histórico.`
-    );
-  };
-
-  const importHistoryFromJson = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: 'application/json',
-        copyToCacheDirectory: true,
-      });
-
-      if (result.canceled) return;
-
-      const fileUri = result.assets?.[0]?.uri;
-      if (!fileUri) {
-        Alert.alert('Erro', 'Não foi possível ler o arquivo selecionado.');
-        return;
-      }
-
-      const rawContent = await FileSystem.readAsStringAsync(fileUri, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-
-      const parsed = JSON.parse(rawContent);
-      const importedRecords = extractImportedRecords(parsed);
-      if (!importedRecords) {
-        Alert.alert(
-          'Formato inválido',
-          'Use um backup JSON gerado pelo app (com lista de sessões).'
-        );
-        return;
-      }
-
-      Alert.alert(
-        'Importar backup',
-        `Arquivo com ${importedRecords.length} sessões. Deseja mesclar com o histórico atual ou substituir tudo?`,
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          {
-            text: 'Mesclar',
-            onPress: () => {
-              applyImportedRecords(importedRecords, 'merge');
-            },
-          },
-          {
-            text: 'Substituir',
-            style: 'destructive',
-            onPress: () => {
-              applyImportedRecords(importedRecords, 'replace');
-            },
-          },
-        ]
-      );
-    } catch (error) {
-      console.error('Error importing history:', error);
-      Alert.alert('Erro', 'Não foi possível importar o backup JSON.');
-    }
-  };
-
   return (
     <View style={styles.container}>
       <View
@@ -432,21 +259,6 @@ export default function HistoryScreen() {
               Tudo
             </Text>
           </TouchableOpacity>
-        </View>
-
-        <View style={styles.backupSection}>
-          <Text style={styles.backupTitle}>Backup de Dados</Text>
-          <Text style={styles.backupSubtitle}>
-            Exporte para JSON e importe quando precisar recuperar suas sessões.
-          </Text>
-          <View style={styles.backupActions}>
-            <TouchableOpacity style={styles.backupButtonPrimary} onPress={exportHistoryToJson}>
-              <Text style={styles.backupButtonPrimaryText}>Exportar JSON</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.backupButtonSecondary} onPress={importHistoryFromJson}>
-              <Text style={styles.backupButtonSecondaryText}>Importar JSON</Text>
-            </TouchableOpacity>
-          </View>
         </View>
 
         <View style={styles.historySection}>
@@ -714,57 +526,6 @@ const styles = StyleSheet.create({
   historySection: {
     marginBottom: 24,
     paddingHorizontal: 24,
-  },
-  backupSection: {
-    marginHorizontal: 24,
-    marginBottom: 16,
-    backgroundColor: '#111827',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#334155',
-    padding: 14,
-  },
-  backupTitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  backupSubtitle: {
-    color: '#CBD5E1',
-    fontSize: 12,
-    lineHeight: 18,
-    marginBottom: 12,
-  },
-  backupActions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  backupButtonPrimary: {
-    flex: 1,
-    backgroundColor: '#3B82F6',
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  backupButtonPrimaryText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  backupButtonSecondary: {
-    flex: 1,
-    backgroundColor: '#1E293B',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#475569',
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  backupButtonSecondaryText: {
-    color: '#E2E8F0',
-    fontSize: 13,
-    fontWeight: '700',
   },
   highlightBanner: {
     backgroundColor: '#1E293B',

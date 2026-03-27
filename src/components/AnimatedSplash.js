@@ -38,7 +38,6 @@ export default function AnimatedSplash({ onFinish }) {
   useEffect(() => {
     if (!showRunning) return;
 
-    // Exit before the dark tail frames in the running animation.
     const earlyExitTimer = setTimeout(() => {
       handleExit();
     }, RUNNING_MAX_DURATION_MS);
