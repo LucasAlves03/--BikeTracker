@@ -917,12 +917,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   sectionTitleRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
+    position: 'relative',
+    justifyContent: 'center',
     paddingHorizontal: 24,
+    paddingRight: 24,
     paddingBottom: 10,
-    gap: 170,
+    minHeight: 36,
   },
   sectionTitleCompact: {
     fontSize: 20,
@@ -930,6 +930,9 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   editGoalsButton: {
+    position: 'absolute',
+    right: 24,
+    top: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
