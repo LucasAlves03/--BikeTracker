@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LinearGradient } from 'expo-linear-gradient';
 import { BikeContext } from '../context/BikeContext';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
@@ -19,11 +18,12 @@ const ACTIVITY_HEADER_IMAGES = {
   indoor: require('../../assets/header_indoor.png'),
   walk: require('../../assets/header_walk.png'),
 };
+
 const DETAIL_METRICS = [
-  { key: 'time', label: 'Tempo', unit: 'min', color: '#38BDF8' },
-  { key: 'distance', label: 'Distância', unit: 'km', color: '#22D3EE' },
-  { key: 'speed', label: 'Velocidade', unit: 'km/h', color: '#34D399' },
-  { key: 'calories', label: 'Calorias', unit: 'kcal', color: '#F97316' },
+  { key: 'time', label: 'Tempo', unit: 'min' },
+  { key: 'distance', label: 'Distância', unit: 'km' },
+  { key: 'speed', label: 'Velocidade', unit: 'km/h' },
+  { key: 'calories', label: 'Calorias', unit: 'kcal' },
 ];
 
 export default function HistoryScreen() {
@@ -120,39 +120,6 @@ export default function HistoryScreen() {
     const parsed = parseFloat(normalized);
     return Number.isFinite(parsed) ? parsed : 0;
   };
-
-  const getPreviousRecord = (record) => {
-    if (!record) return null;
-
-    const type = getActivityType(record);
-    const sortedByDate = records
-      .filter((item) => getActivityType(item) === type)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-    const currentIndex = sortedByDate.findIndex((item) => item.id === record.id);
-    if (currentIndex === -1) return null;
-    return sortedByDate[currentIndex + 1] || null;
-  };
-
-  const getDeltaText = (current, previous, unit) => {
-    const currentValue = parseMetricNumber(current);
-    const previousValue = parseMetricNumber(previous);
-    const delta = currentValue - previousValue;
-    if (delta === 0) return 'Sem mudança';
-    const prefix = delta > 0 ? '+' : '';
-    return `${prefix}${delta.toFixed(1)} ${unit}`;
-  };
-
-  const getDeltaValue = (current, previous) =>
-    parseMetricNumber(current) - parseMetricNumber(previous);
-
-  const getDeltaStyle = (current, previous) => {
-    const delta = getDeltaValue(current, previous);
-    if (delta > 0) return styles.summaryDeltaUp;
-    if (delta < 0) return styles.summaryDeltaDown;
-    return styles.summaryDeltaNeutral;
-  };
-
   const getMetricNumericValue = (record, key) => {
     if (!record) return 0;
     if (key === 'steps') return parseInt(record.steps || 0, 10) || 0;
@@ -163,6 +130,23 @@ export default function HistoryScreen() {
     if (unit === 'steps') return `${Math.round(value)}`;
     if (unit === 'kcal' || unit === 'min') return `${Math.round(value)} ${unit}`;
     return `${value.toFixed(1)} ${unit}`;
+  };
+
+  const getMetricIcon = (key) => {
+    switch (key) {
+      case 'time':
+        return 'time-outline';
+      case 'distance':
+        return 'map-outline';
+      case 'speed':
+        return 'speedometer-outline';
+      case 'calories':
+        return 'flame-outline';
+      case 'steps':
+        return 'footsteps-outline';
+      default:
+        return 'stats-chart-outline';
+    }
   };
 
   useFocusEffect(
@@ -210,9 +194,6 @@ export default function HistoryScreen() {
       scrollViewRef.current.scrollTo({ y: Math.max(y - 24, 0), animated: true });
     }
   }, [highlightRecordIds]);
-
-  const previousRecord = getPreviousRecord(selectedRecord);
-
   return (
     <View style={styles.container}>
       <View
@@ -339,14 +320,12 @@ export default function HistoryScreen() {
                     imageStyle={styles.modalHeaderImageStyle}
                     resizeMode="cover"
                   >
-                    <View style={styles.modalHeaderOverlay}>
-                      <Text style={styles.modalHeaderTitle}>
-                        {getRecordTitle(getActivityType(selectedRecord))}
-                      </Text>
-                      <Text style={styles.modalHeaderSubtitle}>
-                        {selectedRecord.displayDate} - {selectedRecord.displayTime}
-                      </Text>
-                    </View>
+                    <TouchableOpacity
+                      style={styles.modalImageCloseButton}
+                      onPress={() => setSelectedRecord(null)}
+                    >
+                      <Ionicons name="close" size={20} color="#E2E8F0" />
+                    </TouchableOpacity>
                   </ImageBackground>
 
                   <ScrollView
@@ -354,94 +333,78 @@ export default function HistoryScreen() {
                     contentContainerStyle={styles.modalBodyContent}
                     showsVerticalScrollIndicator={false}
                   >
-                    <Text style={styles.modalSectionTitle}>Resumo da Sessão</Text>
-                    <View style={styles.detailCardsWrap}>
-                      {[
-                        ...DETAIL_METRICS,
-                        ...(getActivityType(selectedRecord) === 'walk' && selectedRecord.steps
-                          ? [{ key: 'steps', label: 'Passos', unit: 'steps', color: '#A78BFA' }]
-                          : []),
-                      ].map((metric) => {
-                        const currentValue = getMetricNumericValue(selectedRecord, metric.key);
-                        const previousValue = getMetricNumericValue(previousRecord, metric.key);
-                        const maxValue = Math.max(currentValue, previousValue, 1);
-                        const currentRatio = currentValue / maxValue;
-                        const previousRatio = previousRecord ? previousValue / maxValue : 0;
+                    <View style={styles.summaryHeaderRow}>
 
-                        return (
-                          <View style={styles.detailMetricCard} key={metric.key}>
-                            <View style={styles.detailMetricTop}>
-                              <Text style={styles.detailMetricLabel}>{metric.label}</Text>
-                              {previousRecord ? (
-                                <Text
-                                  style={[
-                                    styles.detailMetricDelta,
-                                    getDeltaStyle(currentValue, previousValue),
-                                  ]}
-                                >
-                                  {getDeltaText(currentValue, previousValue, metric.unit === 'steps' ? '' : metric.unit)}
-                                </Text>
-                              ) : (
-                                <Text style={styles.detailMetricDeltaMuted}>Sem compara??o</Text>
-                              )}
-                            </View>
+                      <Text style={styles.modalSectionTitle}>Resumo da Sessão</Text>
 
-                            <View style={styles.detailBarLine}>
-                              <Text style={styles.detailBarLabel}>Sessão selecionada</Text>
-                              <View style={styles.detailBarTrack}>
-                                <View
-                                  style={[
-                                    styles.detailBarFill,
-                                    { width: `${Math.min(Math.max(currentRatio, 0), 1) * 100}%`, backgroundColor: metric.color },
-                                  ]}
-                                />
-                              </View>
-                              <Text style={styles.detailBarValue}>
-                                {formatMetricDisplayValue(currentValue, metric.unit)}
-                              </Text>
-                            </View>
+                      <TouchableOpacity
 
-                            {previousRecord ? (
-                              <View style={styles.detailBarLine}>
-                                <Text style={styles.detailBarLabel}>Sessão anterior</Text>
-                                <View style={styles.detailBarTrack}>
-                                  <View
-                                    style={[
-                                      styles.detailBarFill,
-                                      styles.detailBarFillPrevious,
-                                      { width: `${Math.min(Math.max(previousRatio, 0), 1) * 100}%` },
-                                    ]}
-                                  />
-                                </View>
-                                <Text style={styles.detailBarValue}>
-                                  {formatMetricDisplayValue(previousValue, metric.unit)}
-                                </Text>
-                              </View>
-                            ) : null}
-                          </View>
-                        );
-                      })}
+                        style={styles.summaryDeleteButton}
+
+                        onPress={() => deleteRecord(selectedRecord.id)}
+
+                      >
+
+                        <Ionicons name="trash-outline" size={18} color="#fff" />
+
+                      </TouchableOpacity>
+
+                    </View>
+                    <View style={styles.sessionMetaCard}>
+                      <Text style={styles.sessionMetaTitle}>
+                        {getRecordTitle(getActivityType(selectedRecord))}
+                      </Text>
+                      <Text style={styles.sessionMetaText}>
+                        {selectedRecord.displayDate} - {selectedRecord.displayTime}
+                      </Text>
                     </View>
 
-                    {!previousRecord ? (
-                      <Text style={styles.noPreviousText}>
-                        Ainda não há sessão anterior de {getRecordTitle(getActivityType(selectedRecord)).toLowerCase()} para comparar.
-                      </Text>
-                    ) : null}
+                    <View style={styles.chipsWrap}>
+                      {(() => {
+                        const metrics = [
+                        ...DETAIL_METRICS,
+                        ...(getActivityType(selectedRecord) === 'walk' && selectedRecord.steps
+                          ? [{ key: 'steps', label: 'Passos', unit: 'steps' }]
+                          : []),
+                        ];
+                        const hasFiveOrMore = metrics.length > 4;
 
-                    <View style={styles.modalActions}>
-                      <TouchableOpacity
-                        style={styles.modalCloseButton}
-                        onPress={() => setSelectedRecord(null)}
-                      >
-                        <Text style={styles.modalCloseButtonText}>Fechar</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.deleteButton}
-                        onPress={() => deleteRecord(selectedRecord.id)}
-                      >
-                        <Text style={styles.deleteButtonText}>Excluir</Text>
-                      </TouchableOpacity>
+                        return metrics.map((metric, index) => {
+                        const currentValue = getMetricNumericValue(selectedRecord, metric.key);
+                        const isLastAndFullWidth = hasFiveOrMore && index === metrics.length - 1;
+                        const useInlineStepsLayout = isLastAndFullWidth && metric.key === 'steps';
+
+                        return (
+                          <View
+                            style={[styles.metricChip, isLastAndFullWidth && styles.metricChipFullWidth]}
+                            key={metric.key}
+                          >
+                            {useInlineStepsLayout ? (
+                              <>
+                                <View style={styles.metricChipIcon}>
+                                  <Ionicons name={getMetricIcon(metric.key)} size={18} color="#fff" />
+                                </View>
+                                <Text style={styles.metricChipInlineText}>
+                                  {`${Math.round(currentValue)} passos`}
+                                </Text>
+                              </>
+                            ) : (
+                              <>
+                                <View style={styles.metricChipIcon}>
+                                  <Ionicons name={getMetricIcon(metric.key)} size={18} color="#fff" />
+                                </View>
+                                <View style={styles.metricChipContent}>
+                                  <Text style={styles.metricChipValue}>
+                                    {formatMetricDisplayValue(currentValue, metric.unit)}
+                                  </Text>
+                                  <Text style={styles.metricChipLabel}>{metric.label}</Text>
+                                </View>
+                              </>
+                            )}
+                          </View>
+                        );
+                      });
+                      })()}
                     </View>
                   </ScrollView>
                 </>
@@ -607,28 +570,6 @@ const styles = StyleSheet.create({
     borderRadius: 0,
     overflow: 'hidden',
   },
-  modalHeaderImage: {
-    height: 350,
-    justifyContent: 'flex-end',
-  },
-  modalHeaderImageStyle: {
-    opacity: 0.78,
-  },
-  modalHeaderOverlay: {
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-    backgroundColor: 'rgba(2, 6, 23, 0.34)',
-  },
-  modalHeaderTitle: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  modalHeaderSubtitle: {
-    color: '#E5E7EB',
-    fontSize: 14,
-  },
   modalBodyScroll: {
     flex: 1,
   },
@@ -639,114 +580,118 @@ const styles = StyleSheet.create({
   },
   modalSectionTitle: {
     color: '#F8FAFC',
-    fontSize: 17,
+    fontSize: 22,
     fontWeight: '700',
     marginBottom: 12,
     marginTop: 2,
     letterSpacing: 0.2,
   },
-  detailCardsWrap: {
+  summaryHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 12,
+  },
+  summaryDeleteButton: {
+    backgroundColor: '#7F1D1D',
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalHeaderImage: {
+    height: 400,
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+  },
+  modalHeaderImageStyle: {
+    opacity: 0.78,
+  },
+  modalImageCloseButton: {
+    marginTop: 14,
+    marginRight: 14,
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    backgroundColor: 'rgba(2, 6, 23, 0.62)',
+    borderWidth: 1,
+    borderColor: '#334155',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sessionMetaCard: {
+    backgroundColor: '#0B1220',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 0.4,
+    borderColor: '#212529',
+    marginBottom: 14,
+  },
+  sessionMetaTitle: {
+    color: '#E2E8F0',
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  sessionMetaText: {
+    color: '#94A3B8',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  chipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
   },
-  detailMetricCard: {
+  metricChip: {
+    width: '48%',
+    minHeight: 106,
+    borderRadius: 16,
     backgroundColor: '#0B1220',
-    borderRadius: 12,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#1E293B',
-  },
-  detailMetricTop: {
+    borderWidth: 0.4,
+    borderColor: '#212529',
+    paddingHorizontal: 12,
+    paddingVertical: 11,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
-    gap: 8,
+    gap: 10,
   },
-  detailMetricLabel: {
-    color: '#E2E8F0',
-    fontSize: 13,
-    fontWeight: '700',
+  metricChipFullWidth: {
+    width: '100%',
+    minHeight: 6,
+
   },
-  detailMetricDelta: {
+  metricChipInlineText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  metricChipIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 999,
+    backgroundColor: '#212529',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  metricChipContent: {
+    flex: 1,
+  },
+  metricChipValue: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  metricChipLabel: {
+    color: '#94A3B8',
     fontSize: 12,
     fontWeight: '700',
   },
-  detailMetricDeltaMuted: {
-    fontSize: 12,
-    color: '#94A3B8',
-    fontWeight: '600',
-  },
-  detailBarLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 6,
-  },
-  detailBarLabel: {
-    width: 108,
-    color: '#94A3B8',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  detailBarTrack: {
-    flex: 1,
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: '#1E293B',
-    overflow: 'hidden',
-  },
-  detailBarFill: {
-    height: '100%',
-    borderRadius: 999,
-  },
-  detailBarFillPrevious: {
-    backgroundColor: '#64748B',
-  },
-  detailBarValue: {
-    minWidth: 74,
-    textAlign: 'right',
-    color: '#E2E8F0',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1F2937',
-    gap: 12,
-  },
-  summaryLabel: {
-    color: '#9CA3AF',
-    fontSize: 14,
-    flex: 1,
-  },
-  summaryValue: {
-    color: '#E2E8F0',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  summaryDelta: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  summaryDeltaUp: {
-    color: '#22C55E',
-  },
-  summaryDeltaDown: {
-    color: '#F87171',
-  },
-  summaryDeltaNeutral: {
-    color: '#A1A1AA',
-  },
-  noPreviousText: {
-    color: '#9CA3AF',
-    fontSize: 13,
-    marginTop: 6,
-    marginBottom: 10,
-  },
+
   sectionDivider: {
     paddingVertical: 16,
   },
@@ -754,37 +699,7 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#374151',
   },
-  modalActions: {
-    marginTop: 18,
-    flexDirection: 'row',
-    gap: 10,
-  },
-  modalCloseButton: {
-    flex: 1,
-    backgroundColor: '#111827',
-    borderWidth: 1,
-    borderColor: '#374151',
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  modalCloseButtonText: {
-    color: '#E2E8F0',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  deleteButton: {
-    flex: 1,
-    backgroundColor: '#7F1D1D',
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  deleteButtonText: {
-    color: '#FCA5A5',
-    fontSize: 14,
-    fontWeight: '600',
-  },
+
   emptyState: {
     alignItems: 'center',
     paddingVertical: 60,
