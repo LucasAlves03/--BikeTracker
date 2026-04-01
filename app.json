@@ -1,57 +1,53 @@
 {
-    "expo":  {
-                 "name":  "Bike Tracker",
-                 "slug":  "BikeTracker",
-                 "version":  "1.0.0",
-                 "icon":  "./assets/icon.png",
-                 "orientation":  "portrait",
-                 "scheme":  "biketracker",
-                 "userInterfaceStyle":  "dark",
-                 "newArchEnabled":  true,
-                 "ios":  {
-                             "supportsTablet":  true
-                         },
-                 "android":  {
-                                 "permissions":  [
-                                                     "NOTIFICATIONS"
-                                                 ],
-                                 "package":  "com.lucasa19.BikeTracker"
-                             },
-                 "web":  {
-                             "output":  "static",
-                             "favicon":  "./assets/icon.png"
-                         },
-                 "plugins":  [
-                                 "expo-router",
-                                 [
-                                     "expo-splash-screen",
-                                     {
-                                         "image":  "./assets/icon.png",
-                                         "imageWidth":  300,
-                                         "resizeMode":  "contain",
-                                         "backgroundColor":  "#000000"
-                                     }
-                                 ],
-                                 [
-                                     "expo-notifications",
-                                     {
-                                         "icon":  "./assets/bike.png",
-                                         "color":  "#ffffff"
-                                     }
-                                 ],
-                                 "expo-web-browser"
-                             ],
-                 "experiments":  {
-                                     "reactCompiler":  true
-                                 },
-                 "extra":  {
-                               "router":  {
-
-                                          },
-                               "eas":  {
-                                           "projectId":  "e2bb15ca-a59d-4c86-be8e-b003b05005af"
-                                       }
-                           },
-                 "jsEngine":  "hermes"
-             }
+  "expo": {
+    "name": "Bike Tracker",
+    "slug": "BikeTracker",
+    "version": "1.0.0",
+    "icon": "./assets/icon.png",
+    "orientation": "portrait",
+    "scheme": "biketracker",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "permissions": ["NOTIFICATIONS"],
+      "package": "com.lucasa19.BikeTracker"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/icon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/icon.png",
+          "imageWidth": 300,
+          "resizeMode": "contain",
+          "backgroundColor": "#000000"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/bike.png",
+          "color": "#ffffff"
+        }
+      ],
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "e2bb15ca-a59d-4c86-be8e-b003b05005af"
+      }
+    },
+    "jsEngine": "hermes"
+  }
 }

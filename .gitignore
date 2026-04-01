@@ -44,3 +44,7 @@ app-example
 
 #credentials
 credentials.json
+
+
+.Jks
+.keystore
