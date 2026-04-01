@@ -41,13 +41,13 @@ export const NotificationService = {
   async addWorkoutNotification(stats) {
     return await this.addNotification(
       'workout',
-      'Treino Concluído! 💪',
+      'Treino Concluído!',
       `${stats.time} min • ${stats.distance} km • ${stats.calories} kcal`
     );
   },  async addGoalCompletedNotification() {
     return await this.addNotification(
       'goal_completed',
-      'Metas Semanais Completas! 🎯',
+      'Metas Semanais Completas!',
       'Parabéns! Você atingiu todas as suas metas desta semana!'
     );
   },
@@ -64,7 +64,7 @@ export const NotificationService = {
   async addStreakNotification(days) {
     return await this.addNotification(
       'streak',
-      `Sequência de ${days} Dias! 🔥`,
+      `Sequência de ${days} Dias!`,
       `Você está em chamas! ${days} dias consecutivos de treino.`
     );
   },
@@ -72,7 +72,7 @@ export const NotificationService = {
   async addAchievementNotification(achievement) {
     return await this.addNotification(
       'achievement',
-      'Nova Conquista Desbloqueada! 🏆',
+      'Nova Conquista Desbloqueada!',
       achievement
     );
   },
@@ -87,7 +87,7 @@ export const NotificationService = {
 
     return await this.addNotification(
       'achievement',
-      'Novo Recorde Pessoal! 🏆',
+      'Novo Recorde Pessoal!',
       messages[recordType] || `Novo recorde: ${value}`
     );
   },

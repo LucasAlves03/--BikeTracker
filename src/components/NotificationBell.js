@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import {
   StyleSheet,
   Text,
@@ -11,6 +11,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { BikeContext } from '../context/BikeContext';
 
 
 const { width } = Dimensions.get('window');
@@ -19,10 +20,21 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showModal, setShowModal] = useState(false);
+  const { notificationRefresh } = useContext(BikeContext);
 
   useEffect(() => {
     loadNotifications();
   }, []);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [notificationRefresh]);
+
+  useEffect(() => {
+    if (showModal) {
+      loadNotifications();
+    }
+  }, [showModal]);
 
   const loadNotifications = async () => {
     try {
@@ -74,15 +86,15 @@ export default function NotificationBell() {
   const getNotificationIcon = (type) => {
     switch (type) {
       case 'goal_completed':
-        return '🎯';
+        return 'checkmark-circle';
       case 'streak':
-        return '🔥';
+        return 'flame';
       case 'achievement':
-        return '🏆';
+        return 'trophy';
       case 'workout':
-        return '💪';
+        return 'barbell';
       default:
-        return '🔔';
+        return 'notifications';
     }
   };
 
@@ -141,7 +153,7 @@ export default function NotificationBell() {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Notificações</Text>
                 <TouchableOpacity onPress={() => setShowModal(false)}>
-                  <Text style={styles.closeButton}>✕</Text>
+                  <Ionicons name="close" size={24} color="#94A3B8" />
                 </TouchableOpacity>
               </View>
 
@@ -178,9 +190,12 @@ export default function NotificationBell() {
                       ]}
                     >
                       <View style={styles.notificationContent}>
-                        <Text style={styles.notificationIcon}>
-                          {getNotificationIcon(notification.type)}
-                        </Text>
+                        <Ionicons
+                          name={getNotificationIcon(notification.type)}
+                          size={28}
+                          color="#E2E8F0"
+                          style={styles.notificationIcon}
+                        />
                         <View style={styles.notificationText}>
                           <Text style={styles.notificationTitle}>
                             {notification.title}
@@ -196,7 +211,7 @@ export default function NotificationBell() {
                           style={styles.deleteButton}
                           onPress={() => deleteNotification(notification.id)}
                         >
-                          <Text style={styles.deleteButtonText}>🗑️</Text>
+                          <Ionicons name="trash-outline" size={20} color="#94A3B8" />
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -264,11 +279,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
   },
-  closeButton: {
-    fontSize: 24,
-    color: '#94A3B8',
-    fontWeight: '600',
-  },
   actionButtons: {
     flexDirection: 'row',
     paddingHorizontal: 24,
@@ -327,8 +337,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   notificationIcon: {
-    fontSize: 32,
     marginRight: 12,
+    marginTop: 1,
   },
   notificationText: {
     flex: 1,
@@ -351,8 +361,5 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     padding: 8,
-  },
-  deleteButtonText: {
-    fontSize: 18,
   },
 });
