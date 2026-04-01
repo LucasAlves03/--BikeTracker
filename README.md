@@ -6,10 +6,10 @@ The app also includes weekly goals that automatically reset every Monday. In the
 
 ## Screenshots
 <p align="center">
-  <img src="screenshots/home.jpeg" width="250"/>
-  <img src="screenshots/add.jpeg" width="250"/>
-  <img src="screenshots/stats.jpeg" width="250"/>
-   <img src="screenshots/history.jpeg" width="250"/>
+  <img src="screenshots/home.jpeg" width="200"/>
+  <img src="screenshots/add.jpeg" width="200"/>
+  <img src="screenshots/stats.jpeg" width="200"/>
+   <img src="screenshots/history.jpeg" width="200"/>
 </p>
 
 
