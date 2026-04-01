@@ -8,6 +8,8 @@ import {
   Alert,
   Modal,
   ImageBackground,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -25,6 +27,7 @@ const DETAIL_METRICS = [
   { key: 'speed', label: 'Velocidade', unit: 'km/h' },
   { key: 'calories', label: 'Calorias', unit: 'kcal' },
 ];
+const TOP_SAFE_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 44;
 
 export default function HistoryScreen() {
   const navigation = useNavigation();
@@ -61,14 +64,6 @@ export default function HistoryScreen() {
     const month = `${date.getMonth() + 1}`.padStart(2, '0');
     const day = `${date.getDate()}`.padStart(2, '0');
     return `${year}-${month}-${day}`;
-  };
-  const formatDayKey = (dayKey) => {
-    const [year, month, day] = dayKey.split('-').map(Number);
-    return new Date(year, month - 1, day).toLocaleDateString('pt-BR', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
   };
 
   const getFilteredRecords = () => {
@@ -194,6 +189,7 @@ export default function HistoryScreen() {
       scrollViewRef.current.scrollTo({ y: Math.max(y - 24, 0), animated: true });
     }
   }, [highlightRecordIds]);
+
   return (
     <View style={styles.container}>
       <View
@@ -243,22 +239,6 @@ export default function HistoryScreen() {
         </View>
 
         <View style={styles.historySection}>
-          {!!activeHighlight?.date && (
-            <View style={styles.highlightBanner}>
-              <Text style={styles.highlightBannerText}>
-                Destacando sessões de {
-                  activeHighlight.type === 'walk'
-                    ? 'caminhada'
-                    : activeHighlight.type === 'indoor'
-                      ? 'bic. ergométrica'
-                      : 'todos os tipos'
-                } em {formatDayKey(activeHighlight.date)}
-              </Text>
-              <TouchableOpacity onPress={() => setActiveHighlight(null)}>
-                <Text style={styles.highlightBannerAction}>Limpar</Text>
-              </TouchableOpacity>
-            </View>
-          )}
           <Text style={styles.sectionTitle}>
             Todas as Sessões ({filteredRecords.length})
           </Text>
@@ -314,19 +294,21 @@ export default function HistoryScreen() {
             <View style={styles.modalCard}>
               {selectedRecord && (
                 <>
+                  <View style={styles.modalTopHeader}>
+                    <Text style={styles.modalTopHeaderTitle}>Histórico</Text>
+                    <TouchableOpacity
+                      style={styles.modalTopCloseButton}
+                      onPress={() => setSelectedRecord(null)}
+                    >
+                      <Ionicons name="close" size={20} color="#E2E8F0" />
+                    </TouchableOpacity>
+                  </View>
                   <ImageBackground
                     source={ACTIVITY_HEADER_IMAGES[getActivityType(selectedRecord)]}
                     style={styles.modalHeaderImage}
                     imageStyle={styles.modalHeaderImageStyle}
                     resizeMode="cover"
-                  >
-                    <TouchableOpacity
-                      style={styles.modalImageCloseButton}
-                      onPress={() => setSelectedRecord(null)}
-                    >
-                      <Ionicons name="close" size={20} color="#E2E8F0" />
-                    </TouchableOpacity>
-                  </ImageBackground>
+                  />
 
                   <ScrollView
                     style={styles.modalBodyScroll}
@@ -490,28 +472,6 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     paddingHorizontal: 24,
   },
-  highlightBanner: {
-    backgroundColor: '#1E293B',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  highlightBannerText: {
-    color: '#E2E8F0',
-    fontSize: 12,
-    fontWeight: '600',
-    flex: 1,
-  },
-  highlightBannerAction: {
-    color: '#60A5FA',
-    fontSize: 12,
-    fontWeight: '700',
-  },
   cardsContainer: {
     gap: 12,
   },
@@ -570,6 +530,30 @@ const styles = StyleSheet.create({
     borderRadius: 0,
     overflow: 'hidden',
   },
+  modalTopHeader: {
+    paddingTop: TOP_SAFE_OFFSET + 2,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#0F172A',
+    borderBottomWidth: 1,
+    borderBottomColor: '#1F2937',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modalTopHeaderTitle: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  modalTopCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    backgroundColor: '#212529',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   modalBodyScroll: {
     flex: 1,
   },
@@ -602,24 +586,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   modalHeaderImage: {
-    height: 400,
+    height: 300,
     justifyContent: 'flex-start',
     alignItems: 'flex-end',
   },
   modalHeaderImageStyle: {
     opacity: 0.78,
-  },
-  modalImageCloseButton: {
-    marginTop: 14,
-    marginRight: 14,
-    width: 36,
-    height: 36,
-    borderRadius: 999,
-    backgroundColor: 'rgba(2, 6, 23, 0.62)',
-    borderWidth: 1,
-    borderColor: '#334155',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   sessionMetaCard: {
     backgroundColor: '#0B1220',
