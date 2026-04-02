@@ -22,7 +22,6 @@ The app also includes weekly goals that automatically reset every Monday. In the
    ```
 
 2. Start the app
-
    ```bash
    npx expo start
    ```
