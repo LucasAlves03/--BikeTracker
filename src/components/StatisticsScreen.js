@@ -1,4 +1,4 @@
-﻿import React, { useState, useContext, useEffect, useRef } from 'react';
+﻿import React, { useState, useContext, useEffect, useRef, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -342,6 +342,81 @@ export default function StatisticsScreen() {
       highlightRequestId: Date.now(),
     });
   };
+  const lifetimeStats = useMemo(
+    () =>
+      records.reduce(
+        (totals, record) => ({
+          exercises: totals.exercises + 1,
+          time: totals.time + parseMetricNumber(record.time),
+          calories: totals.calories + parseMetricNumber(record.calories),
+          distance: totals.distance + parseMetricNumber(record.distance),
+        }),
+        { exercises: 0, time: 0, calories: 0, distance: 0 }
+      ),
+    [records]
+  );
+
+  const firstSessionDate = useMemo(() => {
+    let oldestDate = null;
+
+    records.forEach((record) => {
+      const currentDate = new Date(record.date);
+      if (Number.isNaN(currentDate.getTime())) return;
+      if (!oldestDate || currentDate.getTime() < oldestDate.getTime()) {
+        oldestDate = currentDate;
+      }
+    });
+
+    return oldestDate;
+  }, [records]);
+
+  const sinceLabel = firstSessionDate
+    ? `Since ${firstSessionDate.toLocaleDateString('pt-BR')}`
+    : 'Since --';
+  const formatTotalMinutes = (totalMinutes) => {
+    const minutes = Math.max(0, Math.round(totalMinutes));
+    if (minutes < 60) return `${minutes}m`;
+
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+
+    if (remainingMinutes === 0) return `${hours}h`;
+    return `${hours}h ${remainingMinutes}m`;
+  };
+  const formatTotalCalories = (totalCalories) => {
+    const calories = Math.max(0, Math.round(totalCalories));
+    if (calories >= 10000) {
+      const caloriesInKg = calories / 1000;
+      return `${caloriesInKg.toLocaleString('pt-BR', {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      })}kg`;
+    }
+    return `${calories.toLocaleString('pt-BR')} kcal`;
+  };
+
+  const yourStatsCards = [
+    {
+      key: 'exercises',
+      label: 'Total de exercícios',
+      value: `${lifetimeStats.exercises}`,
+    },
+    {
+      key: 'time',
+      label: 'Tempo gasto em exercícios',
+      value: formatTotalMinutes(lifetimeStats.time),
+    },
+    {
+      key: 'calories',
+      label: 'Calorias queimadas (kcal)',
+      value: formatTotalCalories(lifetimeStats.calories),
+    },
+    {
+      key: 'distance',
+      label: 'Distância total percorrida',
+      value: `${lifetimeStats.distance.toFixed(1)} km`,
+    },
+  ];
   return (
     <View style={styles.container}>
       <View
@@ -359,6 +434,21 @@ export default function StatisticsScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.section}>
+          <View style={styles.yourStatsHeaderRow}>
+            <Text style={styles.sectionTitle}>Seu Histórico</Text>
+            <Text style={styles.yourStatsSince}>{sinceLabel}</Text>
+          </View>
+          <View style={styles.yourStatsRow}>
+            {yourStatsCards.map((card) => (
+              <View style={styles.yourStatsCard} key={card.key}>
+                <Text style={styles.yourStatsValue}>{card.value}</Text>
+                <Text style={styles.yourStatsLabel}>{card.label}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
         <View style={styles.filterSection}>
           {['all', 'indoor', 'walk'].map((type) => (
             <TouchableOpacity
@@ -753,6 +843,44 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 28,
   },
+  yourStatsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingRight: 33,
+  },
+  yourStatsSince: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  yourStatsRow: {
+    paddingHorizontal: 24,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  yourStatsCard: {
+    width: '48%',
+    borderRadius: 16,
+    backgroundColor: '#111827',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderStyle: 'solid',
+    borderColor: '#212529',
+    borderWidth: 1,
+  },
+  yourStatsValue: {
+    color: '#FFFFFF',
+    fontSize: 21,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  yourStatsLabel: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   compareTabs: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1104,3 +1232,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 });
+
+
