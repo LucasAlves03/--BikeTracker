@@ -9,9 +9,9 @@ import {
   Easing,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LineChart } from 'react-native-gifted-charts';
 import { BikeContext } from '../context/BikeContext';
+import { listExercises } from '../db/exercisesDb';
 
 const PERFORMANCE_METRICS = [
   { key: 'distance', label: 'Melhor Distância', unit: 'km' },
@@ -67,13 +67,8 @@ export default function StatisticsScreen() {
 
   const loadRecords = async () => {
     try {
-      const savedRecords = await AsyncStorage.getItem('bikeRecords');
-      if (savedRecords !== null) {
-        const parsedRecords = JSON.parse(savedRecords);
-        setRecords(parsedRecords);
-      } else {
-        setRecords([]);
-      }
+      const dbRecords = await listExercises();
+      setRecords(dbRecords);
     } catch (error) {
       console.error('Error loading records:', error);
     }
@@ -371,8 +366,8 @@ export default function StatisticsScreen() {
   }, [records]);
 
   const sinceLabel = firstSessionDate
-    ? `Since ${firstSessionDate.toLocaleDateString('pt-BR')}`
-    : 'Since --';
+    ? `Desde ${firstSessionDate.toLocaleDateString('pt-BR')}`
+    : 'Desde --';
   const formatTotalMinutes = (totalMinutes) => {
     const minutes = Math.max(0, Math.round(totalMinutes));
     if (minutes < 60) return `${minutes}m`;

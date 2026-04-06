@@ -12,9 +12,9 @@ import {
   StatusBar,
 } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BikeContext } from '../context/BikeContext';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { deleteExerciseById, listExercises } from '../db/exercisesDb';
 
 const ACTIVITY_HEADER_IMAGES = {
   indoor: require('../../assets/header_indoor.png'),
@@ -49,11 +49,8 @@ export default function HistoryScreen() {
 
   const loadRecords = async () => {
     try {
-      const savedRecords = await AsyncStorage.getItem('bikeRecords');
-      if (savedRecords !== null) {
-        const parsedRecords = JSON.parse(savedRecords);
-        setRecords(parsedRecords);
-      }
+      const dbRecords = await listExercises();
+      setRecords(dbRecords);
     } catch (error) {
       console.error('Error loading records:', error);
     }
@@ -92,7 +89,7 @@ export default function HistoryScreen() {
           onPress: async () => {
             const updatedRecords = records.filter(record => record.id !== id);
             try {
-              await AsyncStorage.setItem('bikeRecords', JSON.stringify(updatedRecords));
+              await deleteExerciseById(id);
               setRecords(updatedRecords);
               setSelectedRecord(null);
             } catch (error) {

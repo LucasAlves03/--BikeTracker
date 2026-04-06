@@ -1,29 +1,33 @@
-import React from 'react';
+﻿import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Text, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import HomeScreen from './HomeScreen';
 import AddExerciseScreen from './AddExerciseScreen';
 import StatisticsScreen from './StatisticsScreen';
 import HistoryScreen from './HistoryScreen';
+import DbDebugScreen from './DbDebugScreen';
 import Ionicons from '@expo/vector-icons/Ionicons';
-
 
 const Tab = createBottomTabNavigator();
 
 const HomeIcon = ({ focused }) => (
-    <Ionicons name='home' size={64} style={styles.icon} color={focused ? "#3B82F6" : "#fff"}/>
+  <Ionicons name="home" size={64} style={styles.icon} color={focused ? '#3B82F6' : '#fff'} />
 );
 
 const AddIcon = ({ focused }) => (
-     <Ionicons name='add-circle-sharp' size={64} style={styles.icon} color={focused ? "#3B82F6" : "#fff"}/>
+  <Ionicons name="add-circle-sharp" size={64} style={styles.icon} color={focused ? '#3B82F6' : '#fff'} />
 );
 
 const HistoryIcon = ({ focused }) => (
-    <Ionicons name='time' size={64} style={styles.icon} color={focused ? "#3B82F6" : "#fff"} />
+  <Ionicons name="time" size={64} style={styles.icon} color={focused ? '#3B82F6' : '#fff'} />
 );
 
 const StatisticsIcon = ({ focused }) => (
-    <Ionicons name='stats-chart' size={64} style={styles.icon} color={focused ? "#3B82F6" : "#fff"} />
+  <Ionicons name="stats-chart" size={64} style={styles.icon} color={focused ? '#3B82F6' : '#fff'} />
+);
+
+const DebugIcon = ({ focused }) => (
+  <Ionicons name="bug" size={64} style={styles.icon} color={focused ? '#3B82F6' : '#fff'} />
 );
 
 export default function TabNavigator() {
@@ -41,35 +45,44 @@ export default function TabNavigator() {
         name="Home"
         component={HomeScreen}
         options={{
-          tabBarIcon: ({ focused, color, size }) => <HomeIcon focused={focused} />,
-    tabBarLabel: 'Início',
+          tabBarIcon: ({ focused }) => <HomeIcon focused={focused} />,
+          tabBarLabel: 'Início',
         }}
       />
       <Tab.Screen
         name="Add"
         component={AddExerciseScreen}
         options={{
-          tabBarIcon: ({ focused, color, size }) => <AddIcon focused={focused} />,
-      tabBarLabel: 'Adicionar',
+          tabBarIcon: ({ focused }) => <AddIcon focused={focused} />,
+          tabBarLabel: 'Adicionar',
         }}
       />
       <Tab.Screen
         name="Statistics"
         component={StatisticsScreen}
         options={{
-          tabBarIcon: ({ focused, color, size }) => <StatisticsIcon focused={focused} />,
-    tabBarLabel: 'Estatísticas',
+          tabBarIcon: ({ focused }) => <StatisticsIcon focused={focused} />,
+          tabBarLabel: 'Estatísticas',
         }}
       />
       <Tab.Screen
         name="History"
         component={HistoryScreen}
         options={{
-          tabBarIcon: ({ focused, color, size }) => <HistoryIcon focused={focused} />,
-    tabBarLabel: 'Histórico',
+          tabBarIcon: ({ focused }) => <HistoryIcon focused={focused} />,
+          tabBarLabel: 'Histórico',
         }}
       />
-   
+      {__DEV__ && (
+        <Tab.Screen
+          name="DBDebug"
+          component={DbDebugScreen}
+          options={{
+            tabBarIcon: ({ focused }) => <DebugIcon focused={focused} />,
+            tabBarLabel: 'DB Debug',
+          }}
+        />
+      )}
     </Tab.Navigator>
   );
 }
@@ -87,15 +100,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  iconContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   icon: {
     fontSize: 24,
     opacity: 0.6,
-  },
-  iconFocused: {
-    opacity: 1,
   },
 });

@@ -20,6 +20,7 @@ import { BikeContext } from '../context/BikeContext';
 import NotificationBell from './NotificationBell';
 import { NotificationService } from '../utils/NotificationService';
 import WeeklyGoalsSetupModal from './WeeklyGoalsSetupModal';
+import { listExercises } from '../db/exercisesDb';
 
 
 
@@ -282,13 +283,10 @@ export default function HomeScreen() {
 
   const loadData = async () => {
     try {
-      const savedRecords = await AsyncStorage.getItem('bikeRecords');
-      if (savedRecords !== null) {
-        const parsedRecords = JSON.parse(savedRecords).map(normalizeRecord);
-        setRecords(parsedRecords);
-        
-        await calculateWeeklyStats(parsedRecords);
-      }
+      const dbRecords = await listExercises();
+      const normalizedRecords = dbRecords.map(normalizeRecord);
+      setRecords(normalizedRecords);
+      await calculateWeeklyStats(normalizedRecords);
     } catch (error) {
       console.error('Error loading data:', error);
     }

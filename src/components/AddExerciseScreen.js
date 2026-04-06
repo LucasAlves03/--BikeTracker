@@ -9,10 +9,10 @@ import {
   Alert,
   StatusBar,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { BikeContext } from '../context/BikeContext';
 import { NotificationService } from '../utils/NotificationService';
+import { upsertExercise } from '../db/exercisesDb';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -99,11 +99,7 @@ export default function AddExerciseScreen({ navigation }) {
     };
 
     try {
-      const savedRecords = await AsyncStorage.getItem('bikeRecords');
-      const records = savedRecords ? JSON.parse(savedRecords) : [];
-      const updatedRecords = [newRecord, ...records];
-
-      await AsyncStorage.setItem('bikeRecords', JSON.stringify(updatedRecords));
+      await upsertExercise(newRecord);
       
       await NotificationService.addWorkoutNotification({
         time,
