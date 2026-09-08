@@ -11,10 +11,11 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
-import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { BikeContext } from '../context/BikeContext';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { deleteExerciseById, listExercises } from '../db/exercisesDb';
+import { deleteExerciseRecord, listExerciseRecords } from '../utils/exerciseStorage';
+
 
 const ACTIVITY_HEADER_IMAGES = {
   indoor: require('../../assets/header_indoor.png'),
@@ -30,8 +31,8 @@ const DETAIL_METRICS = [
 const TOP_SAFE_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 44;
 
 export default function HistoryScreen() {
-  const navigation = useNavigation();
-  const route = useRoute();
+  const router = useRouter();
+  const params = useLocalSearchParams();
   const [records, setRecords] = useState([]);
   const [filter, setFilter] = useState('all'); 
   const [selectedRecord, setSelectedRecord] = useState(null);
@@ -49,12 +50,13 @@ export default function HistoryScreen() {
 
   const loadRecords = async () => {
     try {
-      const dbRecords = await listExercises();
-      setRecords(dbRecords);
+      const savedRecords = await listExerciseRecords();
+      setRecords(savedRecords);
     } catch (error) {
       console.error('Error loading records:', error);
     }
   };
+
   const getDayKey = (dateValue) => {
     const date = new Date(dateValue);
     const year = date.getFullYear();
@@ -89,7 +91,7 @@ export default function HistoryScreen() {
           onPress: async () => {
             const updatedRecords = records.filter(record => record.id !== id);
             try {
-              await deleteExerciseById(id);
+              await deleteExerciseRecord(id);
               setRecords(updatedRecords);
               setSelectedRecord(null);
             } catch (error) {
@@ -143,25 +145,25 @@ export default function HistoryScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
-      const highlightDate = route.params?.highlightDate;
+      const highlightDate = params.highlightDate;
       if (highlightDate) {
         setFilter('all');
         setActiveHighlight({
           date: highlightDate,
-          type: route.params?.highlightType || null,
-          requestId: route.params?.highlightRequestId || Date.now(),
+          type: params.highlightType || null,
+          requestId: params.highlightRequestId || Date.now(),
         });
-        navigation.setParams({
+        router.setParams({
           highlightDate: undefined,
           highlightType: undefined,
           highlightRequestId: undefined,
         });
       }
     }, [
-      navigation,
-      route.params?.highlightDate,
-      route.params?.highlightType,
-      route.params?.highlightRequestId,
+      params.highlightDate,
+      params.highlightType,
+      params.highlightRequestId,
+      router,
     ])
   );
 

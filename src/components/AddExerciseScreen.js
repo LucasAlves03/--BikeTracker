@@ -10,9 +10,10 @@ import {
   StatusBar,
 } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import { useRouter } from 'expo-router';
 import { BikeContext } from '../context/BikeContext';
 import { NotificationService } from '../utils/NotificationService';
-import { upsertExercise } from '../db/exercisesDb';
+import { saveExerciseRecord } from '../utils/exerciseStorage';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -22,7 +23,8 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export default function AddExerciseScreen({ navigation }) {
+export default function AddExerciseScreen() {
+  const router = useRouter();
   const [activityType, setActivityType] = useState('indoor');
   const [time, setTime] = useState('');
   const [speed, setSpeed] = useState('');
@@ -99,8 +101,8 @@ export default function AddExerciseScreen({ navigation }) {
     };
 
     try {
-      await upsertExercise(newRecord);
-      
+      await saveExerciseRecord(newRecord);
+
       await NotificationService.addWorkoutNotification({
         time,
         distance,
@@ -122,7 +124,7 @@ export default function AddExerciseScreen({ navigation }) {
           text: 'OK',
           onPress: () => {
             sendCongratulationsNotification(newRecord);
-            navigation.navigate('Home');
+            router.navigate('/(tabs)');
           },
         }
       ]);

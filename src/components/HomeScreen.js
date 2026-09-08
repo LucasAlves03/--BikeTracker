@@ -11,7 +11,7 @@ import {
   Animated,
   Easing,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ProgressChart } from 'react-native-chart-kit';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,26 +20,17 @@ import { BikeContext } from '../context/BikeContext';
 import NotificationBell from './NotificationBell';
 import { NotificationService } from '../utils/NotificationService';
 import WeeklyGoalsSetupModal from './WeeklyGoalsSetupModal';
-import { listExercises } from '../db/exercisesDb';
+import { listExerciseRecords } from '../utils/exerciseStorage';
+import {
+  DEFAULT_WEEKLY_GOALS,
+  WEEKLY_GOALS_KEY,
+  normalizeWeeklyGoals,
+  normalizeStepsGoal,
+} from '../utils/weeklyGoals';
 
 
 
 const { width } = Dimensions.get('window');
-const WEEKLY_GOALS_KEY = 'weeklyGoalsByType';
-const DEFAULT_WEEKLY_GOALS = {
-  indoor: {
-    distance: 80,
-    time: 300,
-    calories: 1125,
-    steps: 0,
-  },
-  walk: {
-    distance: 20,
-    time: 240,
-    calories: 800,
-    steps: 45000,
-  },
-};
 const ACTIVITY_HEADER_IMAGES = {
   indoor: require('../../assets/header_indoor.png'),
   walk: require('../../assets/header_walk.png'),
@@ -83,13 +74,7 @@ const parseDecimalValue = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const parseStepsValue = (value) => {
-  if (value === null || value === undefined || value === '') return 0;
-  if (typeof value === 'number') return Number.isFinite(value) ? Math.round(value) : 0;
-  const digits = String(value).replace(/[^\d]/g, '');
-  if (!digits) return 0;
-  return parseInt(digits, 10);
-};
+const parseStepsValue = normalizeStepsGoal;
 
 const formatIntegerPtBr = (value) => new Intl.NumberFormat('pt-BR').format(Math.round(value || 0));
 
@@ -141,7 +126,7 @@ export default function HomeScreen() {
       return acc;
     }, {})
   ).current;
-  const { refreshTrigger, triggerNotificationRefresh } = useContext(BikeContext);
+  const { refreshTrigger } = useContext(BikeContext);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -184,18 +169,7 @@ export default function HomeScreen() {
       const savedGoals = await AsyncStorage.getItem(WEEKLY_GOALS_KEY);
       if (!savedGoals) return;
 
-      const parsedGoals = JSON.parse(savedGoals);
-      setWeeklyGoalsByType({
-        indoor: {
-          ...DEFAULT_WEEKLY_GOALS.indoor,
-          ...(parsedGoals?.indoor || {}),
-        },
-        walk: {
-          ...DEFAULT_WEEKLY_GOALS.walk,
-          ...(parsedGoals?.walk || {}),
-          steps: parseStepsValue(parsedGoals?.walk?.steps ?? DEFAULT_WEEKLY_GOALS.walk.steps),
-        },
-      });
+      setWeeklyGoalsByType(normalizeWeeklyGoals(JSON.parse(savedGoals)));
     } catch (error) {
       console.error('Error loading weekly goals:', error);
     }
@@ -276,17 +250,11 @@ export default function HomeScreen() {
     }
   };
 
-  const normalizeRecord = (record) => ({
-    ...record,
-    activityType: record.activityType || 'indoor',
-  });
-
   const loadData = async () => {
     try {
-      const dbRecords = await listExercises();
-      const normalizedRecords = dbRecords.map(normalizeRecord);
-      setRecords(normalizedRecords);
-      await calculateWeeklyStats(normalizedRecords);
+      const savedRecords = await listExerciseRecords();
+      setRecords(savedRecords);
+      await calculateWeeklyStats(savedRecords);
     } catch (error) {
       console.error('Error loading data:', error);
     }

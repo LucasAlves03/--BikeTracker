@@ -1,5 +1,5 @@
-import TabNavigator from '../src/components/TabNavigator';
+import { Redirect } from 'expo-router';
 
 export default function App() {
-  return <TabNavigator />;
+  return <Redirect href="/(tabs)" />;
 }

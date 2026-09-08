@@ -8,10 +8,11 @@ import {
   Animated,
   Easing,
 } from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { LineChart } from 'react-native-gifted-charts';
 import { BikeContext } from '../context/BikeContext';
-import { listExercises } from '../db/exercisesDb';
+import { listExerciseRecords } from '../utils/exerciseStorage';
+
 
 const PERFORMANCE_METRICS = [
   { key: 'distance', label: 'Melhor Distância', unit: 'km' },
@@ -49,7 +50,7 @@ const SESSION_COMPARISON_METRICS = [
 ];
 
 export default function StatisticsScreen() {
-  const navigation = useNavigation();
+  const router = useRouter();
   const [records, setRecords] = useState([]);
   const [filterType, setFilterType] = useState('all');
   const [compareMetric, setCompareMetric] = useState('distance');
@@ -67,8 +68,8 @@ export default function StatisticsScreen() {
 
   const loadRecords = async () => {
     try {
-      const dbRecords = await listExercises();
-      setRecords(dbRecords);
+      const savedRecords = await listExerciseRecords();
+      setRecords(savedRecords);
     } catch (error) {
       console.error('Error loading records:', error);
     }
@@ -331,10 +332,13 @@ export default function StatisticsScreen() {
     return hexToRgba(baseColor, alpha);
   };
   const navigateToHistoryDate = (dayKey, type) => {
-    navigation.navigate('History', {
-      highlightDate: dayKey,
-      highlightType: type,
-      highlightRequestId: Date.now(),
+    router.navigate({
+      pathname: '/(tabs)/history',
+      params: {
+        highlightDate: dayKey,
+        highlightType: type,
+        highlightRequestId: Date.now(),
+      },
     });
   };
   const lifetimeStats = useMemo(
@@ -975,7 +979,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingVertical: 10,
     fontSize: 18,
-    fontWeight: 700
+    fontWeight: '700',
   },
   comparisonCard: {
     marginHorizontal: 24,

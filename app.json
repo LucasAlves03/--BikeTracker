@@ -7,12 +7,13 @@
     "orientation": "portrait",
     "scheme": "biketracker",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
     "android": {
-      "permissions": ["NOTIFICATIONS"],
+      "permissions": [
+        "NOTIFICATIONS"
+      ],
       "package": "com.lucasa19.BikeTracker"
     },
     "web": {
@@ -37,7 +38,11 @@
           "color": "#ffffff"
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-font",
+      "expo-image",
+      "expo-status-bar",
+      "expo-sqlite"
     ],
     "experiments": {
       "reactCompiler": true
@@ -47,7 +52,6 @@
       "eas": {
         "projectId": "e2bb15ca-a59d-4c86-be8e-b003b05005af"
       }
-    },
-    "jsEngine": "hermes"
+    }
   }
 }
