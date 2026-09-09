@@ -14,6 +14,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
 import { BikeContext } from '../context/BikeContext';
 import { listExerciseRecords } from '../utils/exerciseStorage';
@@ -48,8 +49,15 @@ const parseMetricNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const parseStepsNumber = (value) => {
+  if (value === null || value === undefined || value === '') return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? Math.round(value) : 0;
+  const digits = String(value).replace(/[^\d]/g, '');
+  return digits ? parseInt(digits, 10) : 0;
+};
+
 const estimateSteps = (record) => {
-  const explicitSteps = parseMetricNumber(record.steps);
+  const explicitSteps = parseStepsNumber(record.steps);
   if (explicitSteps > 0) return explicitSteps;
   return Math.round(parseMetricNumber(record.distance) * STEPS_PER_KM);
 };
@@ -76,12 +84,18 @@ const formatMetricValue = (value, unit) => {
 };
 
 const formatSteps = (value) => {
-  const numeric = Math.round(parseMetricNumber(value));
+  const numeric = parseStepsNumber(value);
   if (numeric >= 1000) {
     const thousands = numeric / 1000;
     return `${Number.isInteger(thousands) ? thousands : thousands.toFixed(1)}k`;
   }
   return `${numeric}`;
+};
+
+const formatProgressValue = (value, metric) => {
+  if (metric === 'steps') return parseStepsNumber(value).toLocaleString('pt-BR');
+  if (metric === 'distance') return parseMetricNumber(value).toFixed(1);
+  return Math.round(parseMetricNumber(value)).toLocaleString('pt-BR');
 };
 
 const formatInlineNumber = (value) =>
@@ -209,7 +223,7 @@ export default function ProfileScreen() {
       time: parseMetricNumber(weeklyGoalsByType.indoor.time) + parseMetricNumber(weeklyGoalsByType.walk.time),
       distance: parseMetricNumber(weeklyGoalsByType.indoor.distance) + parseMetricNumber(weeklyGoalsByType.walk.distance),
       calories: parseMetricNumber(weeklyGoalsByType.indoor.calories) + parseMetricNumber(weeklyGoalsByType.walk.calories),
-      steps: parseMetricNumber(weeklyGoalsByType.indoor.steps) + parseMetricNumber(weeklyGoalsByType.walk.steps),
+      steps: parseStepsNumber(weeklyGoalsByType.indoor.steps) + parseStepsNumber(weeklyGoalsByType.walk.steps),
     };
 
     return {
@@ -225,6 +239,13 @@ export default function ProfileScreen() {
         calories: getProgressPercent(weeklyCalories, weeklyGoals.calories),
         steps: getProgressPercent(weeklySteps, weeklyGoals.steps),
       },
+      weeklyValues: {
+        time: weeklyTime,
+        distance: weeklyDistance,
+        calories: weeklyCalories,
+        steps: weeklySteps,
+      },
+      weeklyGoals,
       latestRecords,
     };
   }, [records, weeklyGoalsByType]);
@@ -353,7 +374,10 @@ export default function ProfileScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* ---- Profile card (light card with picture, name, badge, quick stats) ---- */}
-          <View style={styles.profileCard}>
+          <LinearGradient
+            colors={['#fff', '#fff']}
+            style={styles.profileCard}
+          >
             <View style={styles.profileCardTop}>
               <TouchableOpacity style={styles.avatarWrap} onPress={handleAvatarPress} activeOpacity={0.8}>
                 {profile.pictureUri ? (
@@ -403,7 +427,7 @@ export default function ProfileScreen() {
                 <Text style={styles.metricSummaryLabel}>Passos</Text>
               </View>
             </View>
-          </View>
+          </LinearGradient>
 
           {/* ---- Melhor Performance grid ---- */}
           <Text style={styles.sectionTitle}>Melhor Performance</Text>
@@ -487,7 +511,9 @@ export default function ProfileScreen() {
               <Text style={styles.goalLabel}>Tempo</Text>
               <View style={styles.progressTrack}>
                 <View style={[styles.progressFill, styles.fillGreen, { width: `${stats.weeklyProgress.time}%` }]} />
-                <Text style={styles.progressText}>{stats.weeklyProgress.time}%</Text>
+                <Text style={styles.progressText}>
+                  {formatProgressValue(stats.weeklyValues.time, 'time')}/{formatProgressValue(stats.weeklyGoals.time, 'time')} min ({stats.weeklyProgress.time}%)
+                </Text>
               </View>
             </View>
 
@@ -495,7 +521,9 @@ export default function ProfileScreen() {
               <Text style={styles.goalLabel}>Distancia</Text>
               <View style={styles.progressTrack}>
                 <View style={[styles.progressFill, styles.fillBlue, { width: `${stats.weeklyProgress.distance}%` }]} />
-                <Text style={styles.progressText}>{stats.weeklyProgress.distance}%</Text>
+                <Text style={styles.progressText}>
+                  {formatProgressValue(stats.weeklyValues.distance, 'distance')}/{formatProgressValue(stats.weeklyGoals.distance, 'distance')} km ({stats.weeklyProgress.distance}%)
+                </Text>
               </View>
             </View>
 
@@ -503,7 +531,9 @@ export default function ProfileScreen() {
               <Text style={styles.goalLabel}>Calorias</Text>
               <View style={styles.progressTrack}>
                 <View style={[styles.progressFill, styles.fillRed, { width: `${stats.weeklyProgress.calories}%` }]} />
-                <Text style={styles.progressText}>{stats.weeklyProgress.calories}%</Text>
+                <Text style={styles.progressText}>
+                  {formatProgressValue(stats.weeklyValues.calories, 'calories')}/{formatProgressValue(stats.weeklyGoals.calories, 'calories')} kcal ({stats.weeklyProgress.calories}%)
+                </Text>
               </View>
             </View>
 
@@ -511,7 +541,9 @@ export default function ProfileScreen() {
               <Text style={styles.goalLabel}>Passos</Text>
               <View style={styles.progressTrack}>
                 <View style={[styles.progressFill, styles.fillPurple, { width: `${stats.weeklyProgress.steps}%` }]} />
-                <Text style={styles.progressText}>{stats.weeklyProgress.steps}%</Text>
+                <Text style={styles.progressText}>
+                  {formatProgressValue(stats.weeklyValues.steps, 'steps')}/{formatProgressValue(stats.weeklyGoals.steps, 'steps')} passos ({stats.weeklyProgress.steps}%)
+                </Text>
               </View>
             </View>
           </View>
@@ -714,10 +746,10 @@ const styles = StyleSheet.create({
   profileCard: {
     marginHorizontal: 20,
     marginBottom: 24,
-    backgroundColor: '#fff',
-    borderRadius: 5,
+    borderRadius: 18,
     padding: 18,
     position: 'relative',
+    overflow: 'hidden',
   },
   profileCardTop: {
     flexDirection: 'row',
@@ -816,10 +848,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   metricSummaryValue: {
-    color: '#0F172A',
-    fontSize: 19,
-    fontWeight: '900',
-    lineHeight: 23,
+    color: '#6B7280',
+    fontSize: 25,
+    fontWeight: 'bold',
+    lineHeight: 20,
   },
   metricSummaryLabel: {
     color: '#64748B',

@@ -7,28 +7,38 @@ import {
   TouchableOpacity,
   Alert,
   Modal,
-  ImageBackground,
   Platform,
   StatusBar,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { BikeContext } from '../context/BikeContext';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { deleteExerciseRecord, listExerciseRecords } from '../utils/exerciseStorage';
+import { DEFAULT_WEEKLY_GOALS, WEEKLY_GOALS_KEY, normalizeWeeklyGoals } from '../utils/weeklyGoals';
 
-
-const ACTIVITY_HEADER_IMAGES = {
-  indoor: require('../../assets/header_indoor.png'),
-  walk: require('../../assets/header_walk.png'),
-};
-
-const DETAIL_METRICS = [
-  { key: 'time', label: 'Tempo', unit: 'min' },
-  { key: 'distance', label: 'Distância', unit: 'km' },
-  { key: 'speed', label: 'Velocidade', unit: 'km/h' },
-  { key: 'calories', label: 'Calorias', unit: 'kcal' },
-];
 const TOP_SAFE_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 44;
+
+const getActivityStyle = (type) =>
+  type === 'walk'
+    ? { accent: '#38BDF8', soft: '#082F49', icon: 'walk-outline', label: 'Caminhada' }
+    : { accent: '#A3E635', soft: '#1A2E05', icon: 'bicycle-outline', label: 'Bicicleta ergométrica' };
+
+const getDateGroupLabel = (dateValue) => {
+  const date = new Date(dateValue);
+  const today = new Date();
+  const startOfDay = (value) => new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+  const difference = Math.round((startOfDay(today) - startOfDay(date)) / (24 * 60 * 60 * 1000));
+
+  if (difference === 0) return 'Hoje';
+  if (difference === 1) return 'Ontem';
+
+  return date.toLocaleDateString('pt-BR', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+  });
+};
 
 export default function HistoryScreen() {
   const router = useRouter();
@@ -36,6 +46,7 @@ export default function HistoryScreen() {
   const [records, setRecords] = useState([]);
   const [filter, setFilter] = useState('all'); 
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [weeklyGoalsByType, setWeeklyGoalsByType] = useState(DEFAULT_WEEKLY_GOALS);
   const [activeHighlight, setActiveHighlight] = useState(null);
   const [headerHeight, setHeaderHeight] = useState(0);
   const scrollViewRef = useRef(null);
@@ -45,6 +56,7 @@ export default function HistoryScreen() {
   useFocusEffect(
     React.useCallback(() => {
       loadRecords();
+      loadWeeklyGoals();
     }, [refreshTrigger])
   );
 
@@ -54,6 +66,16 @@ export default function HistoryScreen() {
       setRecords(savedRecords);
     } catch (error) {
       console.error('Error loading records:', error);
+    }
+  };
+
+  const loadWeeklyGoals = async () => {
+    try {
+      const savedGoals = await AsyncStorage.getItem(WEEKLY_GOALS_KEY);
+      setWeeklyGoalsByType(normalizeWeeklyGoals(savedGoals ? JSON.parse(savedGoals) : null));
+    } catch (error) {
+      console.error('Error loading history weekly goals:', error);
+      setWeeklyGoalsByType(DEFAULT_WEEKLY_GOALS);
     }
   };
 
@@ -105,8 +127,6 @@ export default function HistoryScreen() {
 
   const getActivityType = (record) => record.activityType || 'indoor';
 
-  const getRecordTitle = (type) => (type === 'walk' ? 'Caminhada' : 'Bic. Ergométrica');
-
   const parseMetricNumber = (value) => {
     if (value === null || value === undefined || value === '') return 0;
     if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
@@ -126,22 +146,63 @@ export default function HistoryScreen() {
     return `${value.toFixed(1)} ${unit}`;
   };
 
-  const getMetricIcon = (key) => {
-    switch (key) {
-      case 'time':
-        return 'time-outline';
-      case 'distance':
-        return 'map-outline';
-      case 'speed':
-        return 'speedometer-outline';
-      case 'calories':
-        return 'flame-outline';
-      case 'steps':
-        return 'footsteps-outline';
-      default:
-        return 'stats-chart-outline';
-    }
-  };
+  const selectedReport = (() => {
+    if (!selectedRecord) return null;
+
+    const activityType = getActivityType(selectedRecord);
+    const goals = weeklyGoalsByType[activityType] || DEFAULT_WEEKLY_GOALS[activityType];
+    const now = new Date();
+    const day = now.getDay();
+    const daysFromMonday = day === 0 ? 6 : day - 1;
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - daysFromMonday);
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 7);
+
+    const weeklyRecords = records.filter((record) => {
+      const recordDate = new Date(record.date).getTime();
+      return (
+        getActivityType(record) === activityType &&
+        Number.isFinite(recordDate) &&
+        recordDate >= weekStart.getTime() &&
+        recordDate < weekEnd.getTime()
+      );
+    });
+    const weeklyTotals = {
+      distance: weeklyRecords.reduce((sum, record) => sum + getMetricNumericValue(record, 'distance'), 0),
+      time: weeklyRecords.reduce((sum, record) => sum + getMetricNumericValue(record, 'time'), 0),
+      calories: weeklyRecords.reduce((sum, record) => sum + getMetricNumericValue(record, 'calories'), 0),
+      steps: weeklyRecords.reduce((sum, record) => sum + getMetricNumericValue(record, 'steps'), 0),
+    };
+    const progressMetrics = [
+      { key: 'distance', label: 'Distância', unit: 'km', color: '#668DC4' },
+      { key: 'time', label: 'Tempo', unit: 'min', color: '#62A77C' },
+      { key: 'calories', label: 'Calorias', unit: 'kcal', color: '#C95C5C' },
+      ...(activityType === 'walk' && goals.steps > 0
+        ? [{ key: 'steps', label: 'Passos', unit: 'steps', color: '#624E8C' }]
+        : []),
+    ].map((metric) => {
+      const current = weeklyTotals[metric.key];
+      const goal = getMetricNumericValue(goals, metric.key);
+      const percent = goal > 0 ? Math.min(Math.round((current / goal) * 100), 100) : 0;
+      return { ...metric, current, goal, percent };
+    });
+    const bestMetrics = ['distance', 'speed', 'calories'].filter((metric) => {
+      const selectedValue = getMetricNumericValue(selectedRecord, metric);
+      return selectedValue > 0 && records.every((record) => {
+        return getActivityType(record) !== activityType || getMetricNumericValue(record, metric) <= selectedValue;
+      });
+    });
+
+    return {
+      activityType,
+      activity: getActivityStyle(activityType),
+      progressMetrics,
+      bestMetrics,
+      weeklyRecordsCount: weeklyRecords.length,
+    };
+  })();
 
   useFocusEffect(
     React.useCallback(() => {
@@ -168,6 +229,26 @@ export default function HistoryScreen() {
   );
 
   const filteredRecords = getFilteredRecords();
+  const groupedRecords = useMemo(() => {
+    const groups = [];
+
+    filteredRecords.forEach((record) => {
+      const groupKey = getDayKey(record.date);
+      const existingGroup = groups.find((group) => group.key === groupKey);
+
+      if (existingGroup) {
+        existingGroup.records.push(record);
+      } else {
+        groups.push({
+          key: groupKey,
+          label: getDateGroupLabel(record.date),
+          records: [record],
+        });
+      }
+    });
+
+    return groups;
+  }, [filteredRecords]);
   const highlightRecordIds = useMemo(() => {
     if (!activeHighlight?.date) return [];
     return filteredRecords
@@ -209,74 +290,110 @@ export default function HistoryScreen() {
       >
 
         <View style={styles.filterSection}>
-          <TouchableOpacity
-            style={[styles.filterButton, filter === 'week' && styles.filterButtonActive]}
-            onPress={() => setFilter('week')}
-          >
-              <Text style={[styles.filterText, filter === 'week' && styles.filterTextActive]}>
-              Semana
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[styles.filterButton, filter === 'month' && styles.filterButtonActive]}
-            onPress={() => setFilter('month')}
-          >
-              <Text style={[styles.filterText, filter === 'month' && styles.filterTextActive]}>
-              Mês
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[styles.filterButton, filter === 'all' && styles.filterButtonActive]}
-            onPress={() => setFilter('all')}
-          >
-              <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
-              Tudo
-            </Text>
-          </TouchableOpacity>
+          {[
+            { key: 'week', label: '7 dias' },
+            { key: 'month', label: '30 dias' },
+            { key: 'all', label: 'Tudo' },
+          ].map((option) => (
+            <TouchableOpacity
+              key={option.key}
+              style={[styles.filterButton, filter === option.key && styles.filterButtonActive]}
+              onPress={() => setFilter(option.key)}
+            >
+              <Text style={[styles.filterText, filter === option.key && styles.filterTextActive]}>
+                {option.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
         <View style={styles.historySection}>
-          <Text style={styles.sectionTitle}>
-            Todas as Sessões ({filteredRecords.length})
-          </Text>
+          <View style={styles.sectionHeaderRow}>
+            <View>
+              <Text style={styles.sectionEyebrow}>ATIVIDADE</Text>
+              <Text style={styles.sectionTitle}>Sua jornada</Text>
+            </View>
+            <View style={styles.sessionCountBadge}>
+              <Text style={styles.sessionCount}>{filteredRecords.length}</Text>
+              <Text style={styles.sessionCountLabel}>sessões</Text>
+            </View>
+          </View>
 
           {filteredRecords.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>Nenhuma sessão encontrada</Text>
-              <Text style={styles.emptySubtext}>Comece a registrar seus exercícios!</Text>
+              <View style={styles.emptyIconWrap}>
+                <Ionicons name="footsteps-outline" size={28} color="#38BDF8" />
+              </View>
+              <Text style={styles.emptyText}>Nada por aqui ainda</Text>
+              <Text style={styles.emptySubtext}>Registre um exercício e acompanhe sua evolução nesta linha do tempo.</Text>
             </View>
           ) : (
-            <View style={styles.cardsContainer}>
-              {filteredRecords.map((record) => (
-                <View
-                  key={record.id}
-                  onLayout={(event) => {
-                    cardPositionsRef.current[record.id] = event.nativeEvent.layout.y;
-                  }}
-                  style={[
-                    styles.modernCard,
-                    highlightRecordIds.includes(record.id) && styles.modernCardHighlighted,
-                  ]}
-                >
-                  <View style={styles.horizontalCardContent}>
-                    <View style={styles.horizontalCardInfo}>
-                      <Text style={styles.modernCardDate}>{record.displayDate}</Text>
-                      <Text style={styles.modernCardTime}>{record.displayTime}</Text>
-                      <Text style={styles.activityTypeText}>
-                        {getRecordTitle(getActivityType(record))}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.viewButton}
-                      onPress={() => setSelectedRecord(record)}
-                    >
-                      <Text style={styles.viewButtonText}>
-                        <Ionicons name='chevron-forward' color={'white'} size={28} />
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
+            <View style={styles.timelineContainer}>
+              {groupedRecords.map((group) => (
+                <View key={group.key} style={styles.timelineGroup}>
+                  <Text style={styles.dateGroupLabel}>{group.label}</Text>
+                  {group.records.map((record, index) => {
+                    const activity = getActivityStyle(getActivityType(record));
+                    const isHighlighted = highlightRecordIds.includes(record.id);
+                    const isLast = index === group.records.length - 1;
+
+                    return (
+                      <View
+                        key={record.id}
+                        onLayout={(event) => {
+                          cardPositionsRef.current[record.id] = event.nativeEvent.layout.y;
+                        }}
+                        style={styles.timelineRow}
+                      >
+                        <View style={styles.timelineRail}>
+                          <View style={[styles.timelineDot, { backgroundColor: activity.accent }]}>
+                            <Ionicons name={activity.icon} size={16} color="#07111F" />
+                          </View>
+                          {!isLast && <View style={styles.timelineLine} />}
+                        </View>
+                        <TouchableOpacity
+                          style={[
+                            styles.activityCard,
+                            { borderLeftColor: activity.accent },
+                            isHighlighted && styles.activityCardHighlighted,
+                          ]}
+                          onPress={() => setSelectedRecord(record)}
+                          activeOpacity={0.86}
+                        >
+                          <View style={styles.activityCardHeader}>
+                            <View style={styles.activityCardTitleWrap}>
+                              <Text style={styles.activityCardTitle}>{activity.label}</Text>
+                              <Text style={styles.activityCardTime}>{record.displayTime}</Text>
+                            </View>
+                            <View style={[styles.activityPill, { backgroundColor: activity.soft }]}>
+                              <Text style={[styles.activityPillText, { color: activity.accent }]}>Detalhes</Text>
+                              <Ionicons name="arrow-forward" size={14} color={activity.accent} />
+                            </View>
+                          </View>
+                          <View style={styles.activityMetricRow}>
+                            <View style={styles.activityMetric}>
+                              <Text style={styles.activityMetricValue}>{formatMetricDisplayValue(getMetricNumericValue(record, 'distance'), 'km')}</Text>
+                              <Text style={styles.activityMetricLabel}>distância</Text>
+                            </View>
+                            <View style={styles.activityMetric}>
+                              <Text style={styles.activityMetricValue}>{formatMetricDisplayValue(getMetricNumericValue(record, 'time'), 'min')}</Text>
+                              <Text style={styles.activityMetricLabel}>tempo</Text>
+                            </View>
+                            <View style={styles.activityMetric}>
+                              <Text style={styles.activityMetricValue}>{formatMetricDisplayValue(getMetricNumericValue(record, 'calories'), 'kcal')}</Text>
+                              <Text style={styles.activityMetricLabel}>energia</Text>
+                            </View>
+                            {getActivityType(record) === 'walk' && record.steps ? (
+                              <View style={styles.activityMetric}>
+                                <Text style={styles.activityMetricValue}>{getMetricNumericValue(record, 'steps').toLocaleString('pt-BR')}</Text>
+                                <Text style={styles.activityMetricLabel}>passos</Text>
+                              </View>
+                            ) : null}
+                          </View>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
                 </View>
               ))}
             </View>
@@ -294,7 +411,10 @@ export default function HistoryScreen() {
               {selectedRecord && (
                 <>
                   <View style={styles.modalTopHeader}>
-                    <Text style={styles.modalTopHeaderTitle}>Histórico</Text>
+                    <View>
+                      <Text style={styles.modalTopHeaderKicker}>DESEMPENHO</Text>
+                      <Text style={styles.modalTopHeaderTitle}>Dados da sessão</Text>
+                    </View>
                     <TouchableOpacity
                       style={styles.modalTopCloseButton}
                       onPress={() => setSelectedRecord(null)}
@@ -302,91 +422,87 @@ export default function HistoryScreen() {
                       <Ionicons name="close" size={20} color="#E2E8F0" />
                     </TouchableOpacity>
                   </View>
-                  <ImageBackground
-                    source={ACTIVITY_HEADER_IMAGES[getActivityType(selectedRecord)]}
-                    style={styles.modalHeaderImage}
-                    imageStyle={styles.modalHeaderImageStyle}
-                    resizeMode="cover"
-                  />
-
                   <ScrollView
                     style={styles.modalBodyScroll}
                     contentContainerStyle={styles.modalBodyContent}
                     showsVerticalScrollIndicator={false}
                   >
-                    <View style={styles.summaryHeaderRow}>
-
-                      <Text style={styles.modalSectionTitle}>Resumo da Sessão</Text>
-
-                      <TouchableOpacity
-
-                        style={styles.summaryDeleteButton}
-
-                        onPress={() => deleteRecord(selectedRecord.id)}
-
-                      >
-
-                        <Ionicons name="trash-outline" size={18} color="#fff" />
-
-                      </TouchableOpacity>
-
-                    </View>
-                    <View style={styles.sessionMetaCard}>
-                      <Text style={styles.sessionMetaTitle}>
-                        {getRecordTitle(getActivityType(selectedRecord))}
-                      </Text>
-                      <Text style={styles.sessionMetaText}>
-                        {selectedRecord.displayDate} - {selectedRecord.displayTime}
-                      </Text>
+                    <View style={styles.athleticHeader}>
+                      <View style={[styles.athleticActivityIcon, { backgroundColor: selectedReport.activity.soft }]}>
+                        <Ionicons
+                          name={selectedReport.activity.icon}
+                          size={24}
+                          color={selectedReport.activity.accent}
+                        />
+                      </View>
+                      <View style={styles.athleticHeaderCopy}>
+                        <Text style={styles.athleticActivityName}>{selectedReport.activity.label}</Text>
+                        <Text style={styles.athleticDateText}>
+                          {selectedRecord.displayDate} às {selectedRecord.displayTime}
+                        </Text>
+                      </View>
+                      <View style={styles.sessionCountBadge}>
+                        <Text style={styles.athleticSessionLabel}>SESSÃO</Text>
+                        <Text style={styles.athleticSessionNumber}>{selectedReport.weeklyRecordsCount}</Text>
+                      </View>
                     </View>
 
-                    <View style={styles.chipsWrap}>
-                      {(() => {
-                        const metrics = [
-                        ...DETAIL_METRICS,
-                        ...(getActivityType(selectedRecord) === 'walk' && selectedRecord.steps
-                          ? [{ key: 'steps', label: 'Passos', unit: 'steps' }]
-                          : []),
-                        ];
-                        const hasFiveOrMore = metrics.length > 4;
+                    <View style={styles.largeMetricRow}>
+                      <View style={styles.largeMetric}>
+                        <Text style={styles.largeMetricLabel}>DISTÂNCIA</Text>
+                        <Text style={styles.largeMetricValue}>{formatMetricDisplayValue(getMetricNumericValue(selectedRecord, 'distance'), 'km')}</Text>
+                      </View>
+                      <View style={styles.largeMetricDivider} />
+                      <View style={styles.largeMetric}>
+                        <Text style={styles.largeMetricLabel}>VELOCIDADE</Text>
+                        <Text style={styles.largeMetricValue}>{formatMetricDisplayValue(getMetricNumericValue(selectedRecord, 'speed'), 'km/h')}</Text>
+                      </View>
+                      <View style={styles.largeMetricDivider} />
+                      <View style={styles.largeMetric}>
+                        <Text style={styles.largeMetricLabel}>CALORIAS</Text>
+                        <Text style={styles.largeMetricValue}>{formatMetricDisplayValue(getMetricNumericValue(selectedRecord, 'calories'), 'kcal')}</Text>
+                      </View>
+                    </View>
 
-                        return metrics.map((metric, index) => {
-                        const currentValue = getMetricNumericValue(selectedRecord, metric.key);
-                        const isLastAndFullWidth = hasFiveOrMore && index === metrics.length - 1;
-                        const useInlineStepsLayout = isLastAndFullWidth && metric.key === 'steps';
-
-                        return (
-                          <View
-                            style={[styles.metricChip, isLastAndFullWidth && styles.metricChipFullWidth]}
-                            key={metric.key}
-                          >
-                            {useInlineStepsLayout ? (
-                              <>
-                                <View style={styles.metricChipIcon}>
-                                  <Ionicons name={getMetricIcon(metric.key)} size={18} color="#fff" />
-                                </View>
-                                <Text style={styles.metricChipInlineText}>
-                                  {`${Math.round(currentValue)} passos`}
-                                </Text>
-                              </>
-                            ) : (
-                              <>
-                                <View style={styles.metricChipIcon}>
-                                  <Ionicons name={getMetricIcon(metric.key)} size={18} color="#fff" />
-                                </View>
-                                <View style={styles.metricChipContent}>
-                                  <Text style={styles.metricChipValue}>
-                                    {formatMetricDisplayValue(currentValue, metric.unit)}
-                                  </Text>
-                                  <Text style={styles.metricChipLabel}>{metric.label}</Text>
-                                </View>
-                              </>
-                            )}
+                    <Text style={styles.reportSectionTitle}>Meta semanal</Text>
+                    <View style={styles.progressList}>
+                      {selectedReport.progressMetrics.map((metric) => (
+                        <View style={styles.progressMetric} key={metric.key}>
+                          <View style={styles.progressMetricHeader}>
+                            <Text style={styles.progressMetricLabel}>{metric.label}</Text>
+                            <Text style={styles.progressMetricValue}>
+                              {formatMetricDisplayValue(metric.current, metric.unit)} / {formatMetricDisplayValue(metric.goal, metric.unit)}
+                            </Text>
                           </View>
-                        );
-                      });
-                      })()}
+                          <View style={styles.performanceTrack}>
+                            <View style={[styles.performanceFill, { width: `${metric.percent}%`, backgroundColor: metric.color }]} />
+                          </View>
+                          <Text style={styles.progressPercent}>{metric.percent}% da meta</Text>
+                        </View>
+                      ))}
                     </View>
+
+                    {selectedReport.bestMetrics.length > 0 && (
+                      <View style={styles.bestResultCard}>
+                        <View style={styles.bestResultIcon}>
+                          <Ionicons name="trophy-outline" size={20} color="#FBBF24" />
+                        </View>
+                        <View style={styles.bestResultCopy}>
+                          <Text style={styles.bestResultTitle}>Melhor resultado</Text>
+                          <Text style={styles.bestResultText}>
+                            {selectedReport.bestMetrics.map((metric) => metric === 'distance' ? 'distância' : metric === 'speed' ? 'velocidade' : 'calorias').join(' e ')} nesta modalidade.
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+
+                    <TouchableOpacity
+                      style={styles.deleteReportButton}
+                      onPress={() => deleteRecord(selectedRecord.id)}
+                    >
+                      <Ionicons name="trash-outline" size={17} color="#FDA4AF" />
+                      <Text style={styles.deleteReportText}>Excluir sessão</Text>
+                    </TouchableOpacity>
                   </ScrollView>
                 </>
               )}
@@ -433,91 +549,183 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 25,
+    fontWeight: '800',
     color: '#FFFFFF',
-    marginBottom: 16,
-    paddingHorizontal: 24,
+    marginTop: 2,
+  },
+  sectionEyebrow: {
+    color: '#38BDF8',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.6,
+    marginBottom: 5,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginBottom: 22,
+  },
+  sessionCountBadge: {
+    alignItems: 'flex-end',
+  },
+  sessionCount: {
+    color: '#F8FAFC',
+    fontSize: 22,
+    fontWeight: '800',
+    lineHeight: 24,
+  },
+  sessionCountLabel: {
+    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '700',
   },
   filterSection: {
     flexDirection: 'row',
-    paddingHorizontal: 24,
-    marginBottom: 24,
-    gap: 12,
+    padding: 4,
+    marginHorizontal: 20,
+    marginBottom: 30,
+    borderRadius: 14,
+    backgroundColor: '#111C30',
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    gap: 4,
   },
   filterButton: {
     flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: '#1E293B',
-    borderWidth: 1,
-    borderColor: '#334155',
+    minHeight: 40,
+    paddingHorizontal: 8,
+    borderRadius: 10,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   filterButtonActive: {
-    backgroundColor: '#3B82F6',
-    borderColor: '#3B82F6',
+    backgroundColor: '#38BDF8',
   },
   filterText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     color: '#94A3B8',
   },
   filterTextActive: {
-    color: '#FFFFFF',
+    color: '#07111F',
   },
   historySection: {
     marginBottom: 24,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
   },
-  cardsContainer: {
-    gap: 12,
+  timelineContainer: {
+    paddingLeft: 2,
   },
-  modernCard: {
-    backgroundColor: '#040404',
-    borderRadius: 13,
+  timelineGroup: {
+    marginBottom: 22,
   },
-  modernCardHighlighted: {
-    borderWidth: 2,
-    borderColor: '#fff',
+  dateGroupLabel: {
+    color: '#CBD5E1',
+    fontSize: 14,
+    fontWeight: '800',
+    textTransform: 'capitalize',
+    marginBottom: 13,
+    marginLeft: 40,
   },
-  horizontalCardContent: {
+  timelineRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    gap: 12,
+    minHeight: 142,
   },
-  horizontalCardInfo: {
+  timelineRail: {
+    width: 40,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  timelineDot: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  timelineLine: {
+    position: 'absolute',
+    top: 34,
+    bottom: 0,
+    width: 1,
+    backgroundColor: '#334155',
+  },
+  activityCard: {
+    flex: 1,
+    minHeight: 126,
+    marginLeft: 10,
+    marginBottom: 16,
+    padding: 15,
+    borderRadius: 16,
+    borderLeftWidth: 3,
+    backgroundColor: '#111C30',
+    borderTopWidth: 1,
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    borderTopColor: '#1E293B',
+    borderRightColor: '#1E293B',
+    borderBottomColor: '#1E293B',
+  },
+  activityCardHighlighted: {
+    borderTopColor: '#F8FAFC',
+    borderRightColor: '#F8FAFC',
+    borderBottomColor: '#F8FAFC',
+  },
+  activityCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 18,
+  },
+  activityCardTitleWrap: {
     flex: 1,
   },
-  modernCardDate: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
+  activityCardTitle: {
+    color: '#F8FAFC',
+    fontSize: 16,
+    fontWeight: '800',
     marginBottom: 4,
   },
-  modernCardTime: {
-    fontSize: 14,
-    color: '#94A3B8',
-  },
-  activityTypeText: {
-    marginTop: 8,
-    color: '#D1D5DB',
+  activityCardTime: {
+    color: '#64748B',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  viewButton: {
-    backgroundColor: 'transparent',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 5,
+  activityPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
   },
-  viewButtonText: {
-    color: '#fff',
-    borderWidth: 2,
-    padding: 10
+  activityPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  activityMetricRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  activityMetric: {
+    flex: 1,
+  },
+  activityMetricValue: {
+    color: '#E2E8F0',
+    fontSize: 12,
+    fontWeight: '800',
+    marginBottom: 3,
+  },
+  activityMetricLabel: {
+    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
   modalOverlay: {
     flex: 1,
@@ -540,10 +748,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  modalTopHeaderKicker: {
+    color: '#38BDF8',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    marginBottom: 3,
+  },
   modalTopHeaderTitle: {
     color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 21,
+    fontWeight: '800',
   },
   modalTopCloseButton: {
     width: 36,
@@ -558,109 +773,292 @@ const styles = StyleSheet.create({
   },
   modalBodyContent: {
     paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 24,
+    paddingTop: 20,
+    paddingBottom: 36,
   },
-  modalSectionTitle: {
-    color: '#F8FAFC',
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: 12,
-    marginTop: 2,
-    letterSpacing: 0.2,
-  },
-  summaryHeaderRow: {
+  athleticHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-    marginBottom: 12,
+    paddingBottom: 25,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1E293B',
+    marginBottom: 24,
   },
-  summaryDeleteButton: {
-    backgroundColor: '#7F1D1D',
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalHeaderImage: {
-    height: 300,
-    justifyContent: 'flex-start',
-    alignItems: 'flex-end',
-  },
-  modalHeaderImageStyle: {
-    opacity: 0.78,
-  },
-  sessionMetaCard: {
-    backgroundColor: '#0B1220',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderWidth: 0.4,
-    borderColor: '#212529',
-    marginBottom: 14,
-  },
-  sessionMetaTitle: {
-    color: '#E2E8F0',
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  sessionMetaText: {
-    color: '#94A3B8',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  chipsWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  metricChip: {
-    width: '48%',
-    minHeight: 106,
+  athleticActivityIcon: {
+    width: 52,
+    height: 52,
     borderRadius: 16,
-    backgroundColor: '#0B1220',
-    borderWidth: 0.4,
-    borderColor: '#212529',
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  metricChipFullWidth: {
-    width: '100%',
-    minHeight: 6,
-
-  },
-  metricChipInlineText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  metricChipIcon: {
-    width: 54,
-    height: 54,
-    borderRadius: 999,
-    backgroundColor: '#212529',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  metricChipContent: {
+  athleticHeaderCopy: {
     flex: 1,
+    marginLeft: 13,
   },
-  metricChipValue: {
-    color: '#fff',
-    fontSize: 18,
+  athleticActivityName: {
+    color: '#F8FAFC',
+    fontSize: 21,
+    fontWeight: '900',
+    marginBottom: 6,
+  },
+  athleticDateText: {
+    color: '#CBD5E1',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  athleticSessionLabel: {
+    color: '#64748B',
+    fontSize: 9,
     fontWeight: '800',
-    marginBottom: 2,
+    letterSpacing: 1.2,
+    marginBottom: 3,
   },
-  metricChipLabel: {
+  athleticSessionNumber: {
+    color: '#E2E8F0',
+    fontSize: 18,
+    fontWeight: '900',
+    textAlign: 'right',
+  },
+  largeMetricRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    paddingVertical: 23,
+    paddingHorizontal: 5,
+    marginBottom: 32,
+    borderRadius: 15,
+    backgroundColor: '#111C30',
+    borderWidth: 1,
+    borderColor: '#020617',
+  },
+  largeMetric: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  largeMetricDivider: {
+    width: 1,
+    backgroundColor: '#334155',
+  },
+  largeMetricLabel: {
+    color: '#CBD5E1',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.7,
+    marginBottom: 10,
+  },
+  largeMetricValue: {
+    color: '#F8FAFC',
+    fontSize: 20,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  progressList: {
+    marginBottom: 22,
+  },
+  progressMetric: {
+    marginBottom: 15,
+  },
+  progressMetricHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 7,
+  },
+  progressMetricLabel: {
+    color: '#CBD5E1',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  progressMetricValue: {
     color: '#94A3B8',
     fontSize: 12,
     fontWeight: '700',
+  },
+  performanceTrack: {
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#1E293B',
+    overflow: 'hidden',
+  },
+  performanceFill: {
+    height: '100%',
+    borderRadius: 8,
+  },
+  progressPercent: {
+    color: '#CBD5E1',
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 5,
+  },
+  bestResultCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 13,
+    marginBottom: 20,
+    borderRadius: 13,
+    backgroundColor: '#29200C',
+    borderWidth: 1,
+    borderColor: '#020617',
+  },
+  bestResultIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#3D2D0D',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bestResultCopy: {
+    flex: 1,
+    marginLeft: 11,
+  },
+  bestResultTitle: {
+    color: '#F8FAFC',
+    fontSize: 14,
+    fontWeight: '900',
+    marginBottom: 3,
+  },
+  bestResultText: {
+    color: '#CBD5E1',
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '600',
+  },
+  modalHeaderImage: {
+    height: 238,
+    justifyContent: 'flex-end',
+  },
+  modalHeaderImageStyle: {
+    opacity: 0.62,
+  },
+  modalHeroOverlay: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 22,
+    backgroundColor: 'rgba(2, 6, 23, 0.45)',
+  },
+  modalActivityIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#0B1220',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  modalHeroActivity: {
+    color: '#BAE6FD',
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  modalHeroHeadline: {
+    color: '#FFFFFF',
+    fontSize: 34,
+    fontWeight: '900',
+    lineHeight: 39,
+  },
+  modalHeroCaption: {
+    color: '#CBD5E1',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  sessionIntro: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 14,
+    paddingHorizontal: 15,
+    paddingVertical: 13,
+    backgroundColor: '#111C30',
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    marginBottom: 13,
+  },
+  sessionIntroTitle: {
+    color: '#F8FAFC',
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 3,
+  },
+  sessionIntroText: {
+    color: '#64748B',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  qualityDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginLeft: 12,
+  },
+  sessionDateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginBottom: 23,
+  },
+  sessionDateText: {
+    color: '#94A3B8',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  reportSectionTitle: {
+    color: '#F8FAFC',
+    fontSize: 19,
+    fontWeight: '800',
+    marginBottom: 11,
+  },
+  reportMetricsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 22,
+  },
+  reportMetricCard: {
+    width: '48%',
+    minHeight: 105,
+    borderRadius: 14,
+    backgroundColor: '#111C30',
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    padding: 13,
+  },
+  reportMetricIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    backgroundColor: '#082F49',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  reportMetricLabel: {
+    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 3,
+  },
+  reportMetricValue: {
+    color: '#F8FAFC',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  deleteReportButton: {
+    minHeight: 44,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: '#4C1D2A',
+    backgroundColor: '#1F1720',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  deleteReportText: {
+    color: '#FDA4AF',
+    fontSize: 13,
+    fontWeight: '800',
   },
 
   sectionDivider: {
@@ -673,15 +1071,32 @@ const styles = StyleSheet.create({
 
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 60,
+    paddingHorizontal: 28,
+    paddingVertical: 58,
+    borderRadius: 18,
+    backgroundColor: '#111C30',
+    borderWidth: 1,
+    borderColor: '#1E293B',
+  },
+  emptyIconWrap: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: '#082F49',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   emptyText: {
-    fontSize: 18,
-    color: '#64748B',
+    fontSize: 19,
+    fontWeight: '800',
+    color: '#E2E8F0',
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#475569',
+    lineHeight: 21,
+    textAlign: 'center',
+    color: '#64748B',
   },
 });
