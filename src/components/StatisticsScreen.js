@@ -1,31 +1,22 @@
-﻿import React, { useState, useContext, useEffect, useRef, useMemo } from 'react';
+﻿import React, { useState, useContext, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
   View,
   ScrollView,
   TouchableOpacity,
-  Animated,
-  Easing,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { LineChart } from 'react-native-gifted-charts';
 import { BikeContext } from '../context/BikeContext';
 import { listExerciseRecords } from '../utils/exerciseStorage';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
-
-const PERFORMANCE_METRICS = [
-  { key: 'distance', label: 'Melhor Distância', unit: 'km' },
-  { key: 'time', label: 'Melhor Tempo', unit: 'min' },
-  { key: 'calories', label: 'Melhores Calorias', unit: 'kcal' },
-  { key: 'speed', label: 'Melhor Velocidade', unit: 'km/h' },
-];
 
 const ACTIVITY_COLORS = {
   indoor: '#F97316',
   walk: '#7DD3FC',
 };
-const BEST_POINTS = 10;
 const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const hexToRgba = (hex, alpha) => {
   const normalized = hex.replace('#', '');
@@ -35,29 +26,35 @@ const hexToRgba = (hex, alpha) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
-const COMPARE_OPTIONS = [
-  { key: 'distance', label: 'Distância (km)' },
-  { key: 'time', label: 'Tempo (min)' },
-  { key: 'calories', label: 'Calorias' },
-  { key: 'speed', label: 'Velocidade (km/h)' },
+const WEEKLY_TREND_METRICS = [
+  { key: 'distance', label: 'Distância', unit: 'km', color: '#668DC4' },
+  { key: 'time', label: 'Tempo', unit: 'min', color: '#62A77C' },
+  { key: 'calories', label: 'Calorias', unit: 'kcal', color: '#C95C5C' },
+  { key: 'speed', label: 'Velocidade', unit: 'km/h', color: '#624E8C' },
 ];
 
-const SESSION_COMPARISON_METRICS = [
-  { key: 'distance', label: 'Distância', unit: 'km' },
-  { key: 'time', label: 'Tempo', unit: 'min' },
-  { key: 'calories', label: 'Calorias', unit: 'kcal' },
-  { key: 'speed', label: 'Velocidade', unit: 'km/h' },
-];
+const formatCompactNumber = (value) => {
+  const numeric = Math.max(0, Number(value) || 0);
+  if (numeric < 10000) return `${Math.round(numeric).toLocaleString('pt-BR')}`;
+
+  const compact = numeric / 1000;
+  return `${compact.toFixed(1).replace('.0', '')}k`;
+};
+
+const formatMonthlyCalories = (value) => {
+  const calories = Math.max(0, Math.round(Number(value) || 0));
+  if (calories >= 1000) return `${(calories / 1000).toFixed(1).replace('.0', '')}Kg`;
+  return calories.toLocaleString('pt-BR');
+};
 
 export default function StatisticsScreen() {
   const router = useRouter();
   const [records, setRecords] = useState([]);
   const [filterType, setFilterType] = useState('all');
   const [compareMetric, setCompareMetric] = useState('distance');
-  const [bestActivityType, setBestActivityType] = useState('indoor');
+  const [frequencyType, setFrequencyType] = useState('indoor');
   const [selectedMonths, setSelectedMonths] = useState({});
   const [headerHeight, setHeaderHeight] = useState(0);
-  const comparisonReveal = useRef(new Animated.Value(0)).current;
   const { refreshTrigger } = useContext(BikeContext);
 
   useFocusEffect(
@@ -83,19 +80,6 @@ export default function StatisticsScreen() {
     return Number.isFinite(parsed) ? parsed : 0;
   };
 
-  useEffect(() => {
-    comparisonReveal.setValue(0);
-    Animated.timing(comparisonReveal, {
-      toValue: 1,
-      duration: 420,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-  }, [filterType, records, comparisonReveal]);
-
-  const formatShortDate = (date) =>
-    new Date(date).toLocaleDateString('pt-BR', { month: 'short', day: 'numeric' });
-
   const getRecordType = (record) => record.activityType || 'indoor';
   const getDayKey = (dateValue) => {
     const date = new Date(dateValue);
@@ -120,69 +104,72 @@ export default function StatisticsScreen() {
       year: 'numeric',
     });
 
-  const getFilteredRecords = () => {
-    if (filterType === 'all') return records;
-    return records.filter((r) => getRecordType(r) === filterType);
-  };
+  const selectedTrendMetric = WEEKLY_TREND_METRICS.find((metric) => metric.key === compareMetric)
+    || WEEKLY_TREND_METRICS[0];
 
-  const getLastTwoByType = (type) => {
-    const sorted = records
-      .filter((record) => getRecordType(record) === type)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const weeklyTrendData = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const start = new Date(today);
+    start.setDate(today.getDate() - 6);
+    const sourceRecords = filterType === 'all'
+      ? records
+      : records.filter((record) => getRecordType(record) === filterType);
 
-    if (sorted.length < 2) return null;
-    return { latest: sorted[0], previous: sorted[1] };
-  };
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + index);
+      const dayKey = getDayKey(date);
+      const dayRecords = sourceRecords.filter((record) => getDayKey(record.date) === dayKey);
+      const value = dayRecords.reduce(
+        (sum, record) => sum + parseMetricNumber(record[selectedTrendMetric.key]),
+        0
+      );
+
+      return {
+        value: Number(value.toFixed(1)),
+        exerciseCount: dayRecords.length,
+        label: date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').slice(0, 3),
+      };
+    });
+  }, [records, filterType, selectedTrendMetric.key]);
+
+  const weeklyTrendAverage = useMemo(() => {
+    const total = weeklyTrendData.reduce((sum, point) => sum + point.value, 0);
+    const exerciseCount = weeklyTrendData.reduce((sum, point) => sum + point.exerciseCount, 0);
+    return exerciseCount > 0 ? total / exerciseCount : 0;
+  }, [weeklyTrendData]);
+
+  const weeklyTrendDescription = `Média de ${selectedTrendMetric.label.toLowerCase()} por exercício`;
+
+  const monthlySummary = useMemo(() => {
+    const now = new Date();
+    const month = now.getMonth();
+    const year = now.getFullYear();
+    const sourceRecords = (filterType === 'all'
+      ? records
+      : records.filter((record) => getRecordType(record) === filterType)
+    ).filter((record) => {
+      const recordDate = new Date(record.date);
+      return recordDate.getMonth() === month && recordDate.getFullYear() === year;
+    });
+
+    return {
+      sessions: sourceRecords.length,
+      calories: sourceRecords.reduce((sum, record) => sum + parseMetricNumber(record.calories), 0),
+      steps: sourceRecords.reduce((sum, record) => {
+        const value = typeof record.steps === 'number'
+          ? record.steps
+          : parseInt(String(record.steps || '').replace(/[^\d]/g, ''), 10) || 0;
+        return sum + value;
+      }, 0),
+    };
+  }, [records, filterType]);
 
   const formatMetricValue = (value, unit) => {
     const numeric = parseMetricNumber(value);
     if (unit === 'kcal' || unit === 'min') return `${Math.round(numeric)} ${unit}`;
     return `${numeric.toFixed(1)} ${unit}`;
-  };
-
-  const buildSessionComparison = (type) => {
-    const pair = getLastTwoByType(type);
-    if (!pair) return null;
-
-    return SESSION_COMPARISON_METRICS.map((metric) => {
-      const latestValue = parseMetricNumber(pair.latest[metric.key]);
-      const previousValue = parseMetricNumber(pair.previous[metric.key]);
-      const delta = latestValue - previousValue;
-      const deltaPct = previousValue === 0 ? null : (delta / previousValue) * 100;
-
-      return {
-        ...metric,
-        latestValue,
-        previousValue,
-        delta,
-        deltaPct,
-      };
-    });
-  };
-
-  const buildBestMetricSeries = (metricKey, type) => {
-    const sorted = [...records]
-      .filter((r) => getRecordType(r) === type)
-      .filter((r) => r[metricKey] !== undefined && r[metricKey] !== null)
-      .sort((a, b) => parseFloat(b[metricKey]) - parseFloat(a[metricKey]))
-      .slice(0, BEST_POINTS);
-
-    const ranked = sorted.map((r, index) => ({
-      value: parseFloat(r[metricKey]),
-      label: `#${index + 1}`,
-    }));
-
-    for (let i = ranked.length; i < BEST_POINTS; i += 1) {
-      ranked.push({
-        value: 0,
-        label: `#${i + 1}`,
-      });
-    }
-
-    return {
-      data: ranked,
-      hasData: sorted.length > 0,
-    };
   };
 
   const getPointerItem = (items, index = 0) => {
@@ -226,45 +213,6 @@ export default function StatisticsScreen() {
       </View>
     );
   };
-
-  const renderChange = (metric) => {
-    if (metric.delta > 0) {
-      return {
-        text: `+${formatMetricValue(metric.delta, metric.unit)}${metric.deltaPct === null ? '' : ` (${metric.deltaPct.toFixed(1)}%)`}`,
-        style: styles.changeUp,
-      };
-    }
-
-    if (metric.delta < 0) {
-      return {
-        text: `${formatMetricValue(metric.delta, metric.unit)}${metric.deltaPct === null ? '' : ` (${metric.deltaPct.toFixed(1)}%)`}`,
-        style: styles.changeDown,
-      };
-    }
-
-    return {
-      text: 'Sem mudança',
-      style: styles.changeNeutral,
-    };
-  };
-
-  const getComparisonRatios = (metric) => {
-    const maxValue = Math.max(metric.latestValue, metric.previousValue, 1);
-    return {
-      latestRatio: metric.latestValue / maxValue,
-      previousRatio: metric.previousValue / maxValue,
-    };
-  };
-  const selectedMetric = PERFORMANCE_METRICS.find((metric) => metric.key === compareMetric)
-    || PERFORMANCE_METRICS[0];
-  const indoorBestSeries = buildBestMetricSeries(compareMetric, 'indoor');
-  const walkBestSeries = buildBestMetricSeries(compareMetric, 'walk');
-  const activeBestSeries = bestActivityType === 'walk' ? walkBestSeries : indoorBestSeries;
-  const activeBestColor =
-    bestActivityType === 'walk' ? ACTIVITY_COLORS.walk : ACTIVITY_COLORS.indoor;
-  const activeBestLabel = bestActivityType === 'walk' ? 'Caminhada' : 'Bic. Ergom\u00e9trica';
-  const activeBestMaxValue = Math.max(...activeBestSeries.data.map((point) => point.value), 1);
-  const frequencyTypes = filterType === 'all' ? ['indoor', 'walk'] : [filterType];
 
   const getAvailableMonths = (type) => {
     const monthSet = new Set();
@@ -399,21 +347,33 @@ export default function StatisticsScreen() {
       key: 'exercises',
       label: 'Total de exercícios',
       value: `${lifetimeStats.exercises}`,
+      icon: 'fitness-outline',
+      color: '#624E8C',
+      progress: Math.min(lifetimeStats.exercises / 30, 1),
     },
     {
       key: 'time',
       label: 'Tempo gasto em exercícios',
       value: formatTotalMinutes(lifetimeStats.time),
+      icon: 'time-outline',
+      color: '#62A77C',
+      progress: Math.min(lifetimeStats.time / 1200, 1),
     },
     {
       key: 'calories',
       label: 'Calorias queimadas (kcal)',
       value: formatTotalCalories(lifetimeStats.calories),
+      icon: 'flame-outline',
+      color: '#C95C5C',
+      progress: Math.min(lifetimeStats.calories / 10000, 1),
     },
     {
       key: 'distance',
       label: 'Distância total percorrida',
       value: `${lifetimeStats.distance.toFixed(1)} km`,
+      icon: 'map-outline',
+      color: '#668DC4',
+      progress: Math.min(lifetimeStats.distance / 500, 1),
     },
   ];
   return (
@@ -440,9 +400,14 @@ export default function StatisticsScreen() {
           </View>
           <View style={styles.yourStatsRow}>
             {yourStatsCards.map((card) => (
-              <View style={styles.yourStatsCard} key={card.key}>
-                <Text style={styles.yourStatsValue}>{card.value}</Text>
-                <Text style={styles.yourStatsLabel}>{card.label}</Text>
+              <View style={[styles.yourStatsCard, { backgroundColor: card.color }]} key={card.key}>
+                <View style={styles.yourStatsContent}>
+                  <View style={styles.yourStatsIcon}>
+                    <Ionicons name={card.icon} size={28} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.yourStatsValue}>{card.value}</Text>
+                  <Text style={styles.yourStatsLabel}>{card.label}</Text>
+                </View>
               </View>
             ))}
           </View>
@@ -463,214 +428,123 @@ export default function StatisticsScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Comparação dos últimos Exercícios</Text>
-          {records.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>Sem dados ainda</Text>
-              <Text style={styles.emptySubtext}>Adicione exercícios para desbloquear insights.</Text>
+          <View style={styles.sectionHeadingRow}>
+            <View>
+              <Text style={styles.sectionEyebrow}>ÚLTIMOS 7 DIAS</Text>
+              <Text style={styles.dashboardSectionTitle}>Ritmo da semana</Text>
             </View>
-          ) : (
-            <>
-              {(filterType === 'all' ? ['indoor', 'walk'] : [filterType]).map((type) => {
-                const pair = getLastTwoByType(type);
-                const comparison = buildSessionComparison(type);
-                const typeLabel = type === 'indoor' ? 'Bic. Ergométrica' : 'Caminhada';
-
-                if (!pair || !comparison) {
-                  return (
-                    <View style={styles.comparisonCard} key={type}>
-                      <Text style={styles.comparisonTitle}>{typeLabel}</Text>
-                      <Text style={styles.comparisonEmptyText}>
-                        Adicione pelo menos 2 sessões de {type === 'indoor' ? 'bic. ergométrica' : 'caminhada'} para comparar desempenho.
-                      </Text>
-                    </View>
-                  );
-                }
-
-                return (
-                  <View style={styles.comparisonCard} key={type}>
-                    <View style={styles.comparisonHeaderRow}>
-                      <View>
-                        <Text style={styles.comparisonTitle}>{typeLabel}</Text>
-                        <Text style={styles.comparisonSubtitle}>
-                          {formatShortDate(pair.latest.date)} vs {formatShortDate(pair.previous.date)}
-                        </Text>
-                      </View>
-                      <View style={styles.comparisonHeaderRight}>
-                        <View style={[styles.comparisonDot, { backgroundColor: ACTIVITY_COLORS[type] }]} />
-                      </View>
-                    </View>
-
-                    
-                      <Animated.View
-                        style={[
-                          styles.comparisonMetricsWrap,
-                          {
-                            opacity: comparisonReveal,
-                            transform: [
-                              {
-                                translateY: comparisonReveal.interpolate({
-                                  inputRange: [0, 1],
-                                  outputRange: [10, 0],
-                                }),
-                              },
-                            ],
-                          },
-                        ]}
-                      >
-                        {comparison.map((metric) => {
-                          const change = renderChange(metric);
-                          const { latestRatio, previousRatio } = getComparisonRatios(metric);
-                          return (
-                            <View style={styles.comparisonMetricCard} key={`${type}-${metric.key}`}>
-                              <View style={styles.comparisonMetricTop}>
-                                <Text style={styles.comparisonMetricLabel}>{metric.label}</Text>
-                                <Text style={[styles.comparisonDeltaBadge, change.style]}>{change.text}</Text>
-                              </View>
-
-                              <View style={styles.comparisonBarLine}>
-                                <Text style={styles.comparisonBarLabel}>Último</Text>
-                                <View style={styles.comparisonBarTrack}>
-                                  <View
-                                    style={[
-                                      styles.comparisonBarFill,
-                                      styles.comparisonBarFillLatest,
-                                      { width: `${Math.min(Math.max(latestRatio, 0), 1) * 100}%` },
-                                    ]}
-                                  />
-                                </View>
-                                <Text style={styles.comparisonBarValue}>
-                                  {formatMetricValue(metric.latestValue, metric.unit)}
-                                </Text>
-                              </View>
-
-                              <View style={styles.comparisonBarLine}>
-                                <Text style={styles.comparisonBarLabel}>Anterior</Text>
-                                <View style={styles.comparisonBarTrack}>
-                                  <View
-                                    style={[
-                                      styles.comparisonBarFill,
-                                      styles.comparisonBarFillPrevious,
-                                      { width: `${Math.min(Math.max(previousRatio, 0), 1) * 100}%` },
-                                    ]}
-                                  />
-                                </View>
-                                <Text style={styles.comparisonBarValue}>
-                                  {formatMetricValue(metric.previousValue, metric.unit)}
-                                </Text>
-                              </View>
-                            </View>
-                          );
-                        })}
-                      </Animated.View>
-                  </View>
-                );
-              })}
-            </>
-          )}
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.bestToggle}>
-            {['indoor', 'walk'].map((type) => {
-              const isActive = bestActivityType === type;
-              return (
-                <TouchableOpacity
-                  key={type}
-                  style={[styles.bestTab, isActive && styles.bestTabActive]}
-                  onPress={() => setBestActivityType(type)}
-                >
-                  <Text style={[styles.bestTabText, isActive && styles.bestTabTextActive]}>
-                    {type === 'walk' ? 'Caminhada' : 'Bic. Ergométrica'}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+            <Text style={styles.sectionMeta}>{selectedTrendMetric.unit}</Text>
           </View>
-          <View style={styles.compareTabs}>
-            {COMPARE_OPTIONS.map((option) => (
+          <View style={styles.metricTabs}>
+            {WEEKLY_TREND_METRICS.map((metric) => (
               <TouchableOpacity
-                key={option.key}
-                style={[
-                  styles.compareTab,
-                  compareMetric === option.key && styles.compareTabActive,
-                ]}
-                onPress={() => setCompareMetric(option.key)}
+                key={metric.key}
+                style={[styles.metricTab, compareMetric === metric.key && styles.metricTabActive]}
+                onPress={() => setCompareMetric(metric.key)}
               >
-                <Text
-                  style={[
-                    styles.compareTabText,
-                    compareMetric === option.key && styles.compareTabTextActive,
-                  ]}
-                >
-                  {option.label}
+                <Text style={[styles.metricTabText, compareMetric === metric.key && styles.metricTabTextActive]}>
+                  {metric.label}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
-              
-          <View style={styles.chartCard}>
-            {!activeBestSeries.hasData ? (
-              <View style={styles.emptyChart}>
-                <Text style={styles.emptyChartText}>
-                  {bestActivityType === 'walk' ? 'Sem registros de caminhada' : 'Sem registros de bic. ergométrica'}
-                </Text>
+          <View style={styles.trendCard}>
+            <Text style={styles.trendSummary}>
+              {weeklyTrendData.reduce((sum, point) => sum + point.value, 0).toFixed(1)} {selectedTrendMetric.unit} nos últimos 7 dias
+            </Text>
+            <LineChart
+              data={weeklyTrendData}
+              curved={false}
+              thickness={3}
+              adjustToWidth
+              spacing={42}
+              initialSpacing={8}
+              endSpacing={8}
+              maxValue={Math.max(...weeklyTrendData.map((point) => point.value), 1) * 1.2}
+              color={selectedTrendMetric.color}
+              yAxisColor="transparent"
+              xAxisColor="#E2E8F0"
+              yAxisThickness={0}
+              xAxisThickness={1}
+              noOfSections={3}
+              hideRules
+              xAxisLabelTextStyle={styles.chartLabel}
+              yAxisTextStyle={styles.chartLabel}
+              pointerConfig={{
+                pointerColor: selectedTrendMetric.color,
+                pointerStripColor: '#CBD5E1',
+                pointerStripWidth: 1,
+                pointerStripUptoDataPoint: true,
+                activatePointersInstantlyOnTouch: true,
+                pointerLabelWidth: 120,
+                pointerLabelHeight: 56,
+                pointerLabelComponent: renderTooltip({
+                  unit: selectedTrendMetric.unit,
+                  showSecondary: false,
+                  primaryLabel: selectedTrendMetric.label,
+                  primaryColor: selectedTrendMetric.color,
+                }),
+              }}
+            />
+            <Text style={styles.trendCaption}>
+              {weeklyTrendDescription}: {formatMetricValue(weeklyTrendAverage, selectedTrendMetric.unit)}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeadingRow}>
+            <View>
+              <Text style={styles.sectionEyebrow}>ESTE MÊS</Text>
+              <Text style={styles.dashboardSectionTitle}>Resumo mensal</Text>
+            </View>
+            <Ionicons name="stats-chart-outline" size={22} color="#CBD5E1" />
+          </View>
+          <View style={styles.monthlySummaryGrid}>
+            <View style={[styles.monthlySummaryCard, styles.monthlySummaryCardTall, styles.monthlySessionsCard]}>
+              <Ionicons name="fitness-outline" size={28} color="#FFFFFF" />
+              <Text style={styles.monthlySummaryValue}>{formatCompactNumber(monthlySummary.sessions)}</Text>
+              <Text style={styles.monthlySummaryLabel}>Sessões no mês</Text>
+            </View>
+            <View style={styles.monthlySummarySide}>
+              <View style={[styles.monthlySummaryCard, styles.monthlyCaloriesCard]}>
+                <Ionicons name="flame-outline" size={21} color="#FFFFFF" />
+                <View style={styles.monthlySummaryCopy}>
+                  <Text style={styles.monthlySummaryValueSmall}>{formatMonthlyCalories(monthlySummary.calories)}</Text>
+                  <Text style={styles.monthlySummaryLabel}>Calorias queimadas</Text>
+                </View>
               </View>
-            ) : (
-                  <LineChart
-                    data={activeBestSeries.data}
-                    areaChart
-                    curved
-                    thickness={2}
-                    adjustToWidth
-                    spacing={28}
-                    initialSpacing={0}
-                    endSpacing={0}
-                    maxValue={activeBestMaxValue * 1.15}
-                    color={activeBestColor}
-                    startFillColor={hexToRgba(activeBestColor, 0.28)}
-                    endFillColor={hexToRgba(activeBestColor, 0.05)}
-                    yAxisColor="rgba(15, 23, 42, 0.2)"
-                    xAxisColor="rgba(15, 23, 42, 0.2)"
-                    yAxisThickness={1}
-                    xAxisThickness={1}
-                    noOfSections={4}
-                    xAxisLabelTextStyle={styles.chartLabel}
-                    yAxisTextStyle={styles.chartLabel}
-                    pointerConfig={{
-                      pointerColor: activeBestColor,
-                      pointerStripColor: 'rgba(15, 23, 42, 0.2)',
-                      pointerStripWidth: 1,
-                      pointerStripUptoDataPoint: true,
-                      autoAdjustPointerLabelPosition: true,
-                      pointerLabelWidth: 140,
-                      pointerLabelHeight: 64,
-                      activatePointersOnLongPress: false,
-                      activatePointersInstantlyOnTouch: true,
-                      persistPointer: true,
-                      resetPointerIndexOnRelease: false,
-                      pointerVanishDelay: 2000,
-                      pointerLabelComponent: renderTooltip({
-                        unit: selectedMetric.unit,
-                        showSecondary: false,
-                        primaryLabel: activeBestLabel,
-                        primaryColor: activeBestColor,
-                      }),
-                    }}
-                  />
-                )}
-              </View>
-              <View style={styles.bestLegendRow}>
-                <View style={styles.bestLegendItem}>
-                  <View style={[styles.bestLegendDot, { backgroundColor: activeBestColor }]} />
-                  <Text style={styles.bestLegendText}>{activeBestLabel}</Text>
+              <View style={[styles.monthlySummaryCard, styles.monthlyStepsCard]}>
+                <Ionicons name="footsteps-outline" size={21} color="#FFFFFF" />
+                <View style={styles.monthlySummaryCopy}>
+                  <Text style={styles.monthlySummaryValueSmall}>{formatCompactNumber(monthlySummary.steps)}</Text>
+                  <Text style={styles.monthlySummaryLabel}>Passos realizados</Text>
                 </View>
               </View>
             </View>
+          </View>
+        </View>
 
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Frequência de Exercícios</Text>
-              {frequencyTypes.map((type) => {
+              <View style={styles.frequencyToggle}>
+                {['indoor', 'walk'].map((type) => {
+                  const isActive = frequencyType === type;
+                  return (
+                    <TouchableOpacity
+                      key={type}
+                      style={[styles.frequencyTab, isActive && styles.frequencyTabActive]}
+                      onPress={() => setFrequencyType(type)}
+                    >
+                      <Text style={[styles.frequencyTabText, isActive && styles.frequencyTabTextActive]}>
+                        {type === 'walk' ? 'Caminhada' : 'Bic. Ergométrica'}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              {(() => {
+                const type = frequencyType;
                 const label = type === 'walk' ? 'Caminhada' : 'Bic. Ergométrica';
                 const color = ACTIVITY_COLORS[type];
                 const months = getAvailableMonths(type);
@@ -680,7 +554,7 @@ export default function StatisticsScreen() {
                 const heatmap = buildMonthHeatmap(type, selectedMonth);
 
                 return (
-                  <View style={styles.heatmapCard} key={`heatmap-${type}`}>
+                  <View style={styles.heatmapCard}>
                     <View style={styles.heatmapHeaderRow}>
                       <Text style={styles.heatmapTypeTitle}>{label}</Text>
                       <Text style={styles.heatmapHint}>Toque em um mês</Text>
@@ -695,20 +569,12 @@ export default function StatisticsScreen() {
                         return (
                           <TouchableOpacity
                             key={`${type}-${monthKey}`}
-                            style={[
-                              styles.monthTab,
-                              isActive && styles.monthTabActive,
-                            ]}
+                            style={[styles.monthTab, isActive && styles.monthTabActive]}
                             onPress={() =>
                               setSelectedMonths((prev) => ({ ...prev, [type]: monthKey }))
                             }
                           >
-                            <Text
-                              style={[
-                                styles.monthTabText,
-                                isActive && styles.monthTabTextActive,
-                              ]}
-                            >
+                            <Text style={[styles.monthTabText, isActive && styles.monthTabTextActive]}>
                               {formatMonthLabel(monthKey)}
                             </Text>
                           </TouchableOpacity>
@@ -769,7 +635,7 @@ export default function StatisticsScreen() {
                     </View>
                   </View>
                 );
-              })}
+              })()}
             </View>
 
             <View style={{ height: 40 }} />
@@ -857,28 +723,41 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    justifyContent: 'space-between',
+    rowGap: 12,
   },
   yourStatsCard: {
     width: '48%',
-    borderRadius: 16,
-    backgroundColor: '#111827',
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    borderStyle: 'solid',
-    borderColor: '#212529',
-    borderWidth: 1,
+    minHeight: 132,
+    borderRadius: 18,
+    overflow: 'hidden',
+    position: 'relative',
+    padding: 16,
+    justifyContent: 'flex-start',
+  },
+  yourStatsContent: {
+    flex: 1,
+    zIndex: 1,
+  },
+  yourStatsIcon: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 15,
   },
   yourStatsValue: {
+    textAlign: 'center',
     color: '#FFFFFF',
-    fontSize: 21,
-    fontWeight: '700',
-    marginBottom: 8,
+    fontSize: 26,
+    fontWeight: '900',
+    marginBottom: 5,
   },
   yourStatsLabel: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
+    textAlign: 'center',
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
   compareTabs: {
     flexDirection: 'row',
@@ -980,6 +859,218 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 18,
     fontWeight: '700',
+  },
+  sectionHeadingRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    marginBottom: 14,
+  },
+  sectionEyebrow: {
+    color: '#38BDF8',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.4,
+    marginBottom: 4,
+  },
+  dashboardSectionTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  monthlySummaryGrid: {
+    flexDirection: 'row',
+    minHeight: 188,
+    marginHorizontal: 24,
+    gap: 12,
+  },
+  monthlySummaryCard: {
+    borderRadius: 18,
+    padding: 15,
+    overflow: 'hidden',
+  },
+  monthlySummaryCardTall: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  monthlySummarySide: {
+    flex: 1,
+    gap: 12,
+  },
+  monthlySessionsCard: {
+    backgroundColor: '#624E8C',
+  },
+  monthlyCaloriesCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    backgroundColor: '#C95C5C',
+  },
+  monthlyStepsCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    backgroundColor: '#668DC4',
+  },
+  monthlySummaryCopy: {
+    flex: 1,
+  },
+  monthlySummaryValue: {
+    color: '#FFFFFF',
+    fontSize: 38,
+    lineHeight: 42,
+    fontWeight: '900',
+  },
+  monthlySummaryValueSmall: {
+    color: '#FFFFFF',
+    fontSize: 21,
+    fontWeight: '900',
+    marginBottom: 3,
+  },
+  monthlySummaryLabel: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+  },
+  frequencyToggle: {
+    flexDirection: 'row',
+    marginHorizontal: 24,
+    marginBottom: 12,
+    padding: 4,
+    borderRadius: 13,
+    backgroundColor: '#000000',
+    gap: 4,
+  },
+  frequencyTab: {
+    flex: 1,
+    minHeight: 42,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  frequencyTabActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  frequencyTabText: {
+    color: '#94A3B8',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  frequencyTabTextActive: {
+    color: '#000000',
+  },
+  sectionMeta: {
+    color: '#64748B',
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  metricTabs: {
+    flexDirection: 'row',
+    marginHorizontal: 24,
+    marginBottom: 12,
+    padding: 4,
+    borderRadius: 13,
+    backgroundColor: '#111C30',
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    gap: 4,
+  },
+  metricTab: {
+    flex: 1,
+    minHeight: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 9,
+    paddingHorizontal: 4,
+  },
+  metricTabActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  metricTabText: {
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  metricTabTextActive: {
+    color: '#0F172A',
+  },
+  trendCard: {
+    marginHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 8,
+    paddingHorizontal: 10,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    overflow: 'hidden',
+  },
+  trendSummary: {
+    color: '#0F172A',
+    fontSize: 14,
+    fontWeight: '800',
+    paddingHorizontal: 8,
+    marginBottom: 4,
+  },
+  trendCaption: {
+    color: '#64748B',
+    fontSize: 12,
+    fontWeight: '700',
+    paddingHorizontal: 8,
+    paddingTop: 7,
+    paddingBottom: 4,
+  },
+  recordsList: {
+    marginHorizontal: 24,
+    borderRadius: 18,
+    backgroundColor: '#111C30',
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    overflow: 'hidden',
+  },
+  recordRow: {
+    minHeight: 76,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1E293B',
+  },
+  recordIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recordCopy: {
+    flex: 1,
+    marginLeft: 11,
+  },
+  recordLabel: {
+    color: '#F8FAFC',
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  recordDate: {
+    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  recordValue: {
+    color: '#F8FAFC',
+    fontSize: 15,
+    fontWeight: '900',
+    marginLeft: 8,
   },
   comparisonCard: {
     marginHorizontal: 24,
