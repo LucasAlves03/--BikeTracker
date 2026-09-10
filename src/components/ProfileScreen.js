@@ -508,43 +508,55 @@ export default function ProfileScreen() {
           <Text style={styles.sectionTitle}>Metas Semanais</Text>
           <View style={styles.goalsList}>
             <View style={styles.goalRow}>
-              <Text style={styles.goalLabel}>Tempo</Text>
+              <View style={styles.goalHeader}>
+                <Text style={styles.goalLabel}>Tempo</Text>
+                <Text style={styles.goalValue}>
+                  {formatProgressValue(stats.weeklyValues.time, 'time')} / {formatProgressValue(stats.weeklyGoals.time, 'time')} min
+                </Text>
+              </View>
               <View style={styles.progressTrack}>
                 <View style={[styles.progressFill, styles.fillGreen, { width: `${stats.weeklyProgress.time}%` }]} />
-                <Text style={styles.progressText}>
-                  {formatProgressValue(stats.weeklyValues.time, 'time')}/{formatProgressValue(stats.weeklyGoals.time, 'time')} min ({stats.weeklyProgress.time}%)
-                </Text>
               </View>
+              <Text style={styles.progressPercent}>{stats.weeklyProgress.time}% da meta</Text>
             </View>
 
             <View style={styles.goalRow}>
-              <Text style={styles.goalLabel}>Distancia</Text>
+              <View style={styles.goalHeader}>
+                <Text style={styles.goalLabel}>Distancia</Text>
+                <Text style={styles.goalValue}>
+                  {formatProgressValue(stats.weeklyValues.distance, 'distance')} / {formatProgressValue(stats.weeklyGoals.distance, 'distance')} km
+                </Text>
+              </View>
               <View style={styles.progressTrack}>
                 <View style={[styles.progressFill, styles.fillBlue, { width: `${stats.weeklyProgress.distance}%` }]} />
-                <Text style={styles.progressText}>
-                  {formatProgressValue(stats.weeklyValues.distance, 'distance')}/{formatProgressValue(stats.weeklyGoals.distance, 'distance')} km ({stats.weeklyProgress.distance}%)
-                </Text>
               </View>
+              <Text style={styles.progressPercent}>{stats.weeklyProgress.distance}% da meta</Text>
             </View>
 
             <View style={styles.goalRow}>
-              <Text style={styles.goalLabel}>Calorias</Text>
+              <View style={styles.goalHeader}>
+                <Text style={styles.goalLabel}>Calorias</Text>
+                <Text style={styles.goalValue}>
+                  {formatProgressValue(stats.weeklyValues.calories, 'calories')} / {formatProgressValue(stats.weeklyGoals.calories, 'calories')} kcal
+                </Text>
+              </View>
               <View style={styles.progressTrack}>
                 <View style={[styles.progressFill, styles.fillRed, { width: `${stats.weeklyProgress.calories}%` }]} />
-                <Text style={styles.progressText}>
-                  {formatProgressValue(stats.weeklyValues.calories, 'calories')}/{formatProgressValue(stats.weeklyGoals.calories, 'calories')} kcal ({stats.weeklyProgress.calories}%)
-                </Text>
               </View>
+              <Text style={styles.progressPercent}>{stats.weeklyProgress.calories}% da meta</Text>
             </View>
 
             <View style={styles.goalRow}>
-              <Text style={styles.goalLabel}>Passos</Text>
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, styles.fillPurple, { width: `${stats.weeklyProgress.steps}%` }]} />
-                <Text style={styles.progressText}>
-                  {formatProgressValue(stats.weeklyValues.steps, 'steps')}/{formatProgressValue(stats.weeklyGoals.steps, 'steps')} passos ({stats.weeklyProgress.steps}%)
+              <View style={styles.goalHeader}>
+                <Text style={styles.goalLabel}>Passos</Text>
+                <Text style={styles.goalValue}>
+                  {formatProgressValue(stats.weeklyValues.steps, 'steps')} / {formatProgressValue(stats.weeklyGoals.steps, 'steps')} passos
                 </Text>
               </View>
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, styles.fillPurple, { width: `${stats.weeklyProgress.steps}%` }]} />
+              </View>
+              <Text style={styles.progressPercent}>{stats.weeklyProgress.steps}% da meta</Text>
             </View>
           </View>
           <View style={{ height: 40 }} />
@@ -979,25 +991,34 @@ const styles = StyleSheet.create({
   goalRow: {
     marginBottom: 16,
   },
+  goalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 7,
+  },
   goalLabel: {
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '700',
-    marginBottom: 7,
+  },
+  goalValue: {
+    color: '#94A3B8',
+    fontSize: 12,
+    fontWeight: '700',
   },
   progressTrack: {
-    height: 34,
-    borderRadius: 17,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: '#1E293B',
     overflow: 'hidden',
-    justifyContent: 'center',
   },
   progressFill: {
     position: 'absolute',
     left: 0,
     top: 0,
     bottom: 0,
-    borderRadius: 17,
+    borderRadius: 8,
   },
   fillGreen: {
     backgroundColor: '#62A77C',
@@ -1010,6 +1031,12 @@ const styles = StyleSheet.create({
   },
   fillPurple: {
     backgroundColor: '#624E8C',
+  },
+  progressPercent: {
+    color: '#CBD5E1',
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 5,
   },
   progressText: {
     color: '#FFFFFF',

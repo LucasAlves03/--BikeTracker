@@ -366,8 +366,8 @@ export default function HistoryScreen() {
                               <Text style={styles.activityCardTime}>{record.displayTime}</Text>
                             </View>
                             <View style={[styles.activityPill, { backgroundColor: activity.soft }]}>
-                              <Text style={[styles.activityPillText, { color: activity.accent }]}>Detalhes</Text>
-                              <Ionicons name="arrow-forward" size={14} color={activity.accent} />
+                              <Text style={[styles.activityPillText]}>Detalhes</Text>
+                              <Ionicons name="arrow-forward" size={14} color={"#fff"} />
                             </View>
                           </View>
                           <View style={styles.activityMetricRow}>
@@ -381,7 +381,7 @@ export default function HistoryScreen() {
                             </View>
                             <View style={styles.activityMetric}>
                               <Text style={styles.activityMetricValue}>{formatMetricDisplayValue(getMetricNumericValue(record, 'calories'), 'kcal')}</Text>
-                              <Text style={styles.activityMetricLabel}>energia</Text>
+                              <Text style={styles.activityMetricLabel}>Calorias</Text>
                             </View>
                             {getActivityType(record) === 'walk' && record.steps ? (
                               <View style={styles.activityMetric}>
@@ -485,7 +485,7 @@ export default function HistoryScreen() {
                     {selectedReport.bestMetrics.length > 0 && (
                       <View style={styles.bestResultCard}>
                         <View style={styles.bestResultIcon}>
-                          <Ionicons name="trophy-outline" size={20} color="#FBBF24" />
+                          <Ionicons name="trophy-outline" size={20} color="#000" />
                         </View>
                         <View style={styles.bestResultCopy}>
                           <Text style={styles.bestResultTitle}>Melhor resultado</Text>
@@ -500,7 +500,7 @@ export default function HistoryScreen() {
                       style={styles.deleteReportButton}
                       onPress={() => deleteRecord(selectedRecord.id)}
                     >
-                      <Ionicons name="trash-outline" size={17} color="#FDA4AF" />
+                      <Ionicons name="trash-outline" size={17} color="#fff" />
                       <Text style={styles.deleteReportText}>Excluir sessão</Text>
                     </TouchableOpacity>
                   </ScrollView>
@@ -706,6 +706,7 @@ const styles = StyleSheet.create({
   activityPillText: {
     fontSize: 10,
     fontWeight: '800',
+    color: '#fff',
   },
   activityMetricRow: {
     flexDirection: 'row',
@@ -827,8 +828,6 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     borderRadius: 15,
     backgroundColor: '#111C30',
-    borderWidth: 1,
-    borderColor: '#020617',
   },
   largeMetric: {
     flex: 1,
@@ -895,15 +894,13 @@ const styles = StyleSheet.create({
     padding: 13,
     marginBottom: 20,
     borderRadius: 13,
-    backgroundColor: '#29200C',
-    borderWidth: 1,
-    borderColor: '#020617',
+    backgroundColor: '#212529',
   },
   bestResultIcon: {
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: '#3D2D0D',
+    backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1047,16 +1044,14 @@ const styles = StyleSheet.create({
   deleteReportButton: {
     minHeight: 44,
     borderRadius: 11,
-    borderWidth: 1,
-    borderColor: '#4C1D2A',
-    backgroundColor: '#1F1720',
+    backgroundColor: '#640D14',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
   deleteReportText: {
-    color: '#FDA4AF',
+    color: '#fff',
     fontSize: 13,
     fontWeight: '800',
   },

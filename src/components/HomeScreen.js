@@ -254,6 +254,8 @@ export default function HomeScreen() {
     try {
       const savedRecords = await listExerciseRecords();
       setRecords(savedRecords);
+      const latestActivityType = savedRecords[0]?.activityType;
+      setActiveTracker(latestActivityType === 'walk' ? 'walk' : 'indoor');
       await calculateWeeklyStats(savedRecords);
     } catch (error) {
       console.error('Error loading data:', error);
