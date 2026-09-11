@@ -53,6 +53,14 @@ export default function TabsLayout() {
           tabBarLabel: 'Perfil',
         }}
       />
+      <Tabs.Screen
+        name="test"
+        options={{
+          href: __DEV__ ? undefined : null,
+          tabBarIcon: ({ focused }) => <TabIcon name="flask" focused={focused} />,
+          tabBarLabel: 'Testes',
+        }}
+      />
     </Tabs>
   );
 }

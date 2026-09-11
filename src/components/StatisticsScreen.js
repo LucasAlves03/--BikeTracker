@@ -166,10 +166,12 @@ export default function StatisticsScreen() {
     };
   }, [records, filterType]);
 
-  const formatMetricValue = (value, unit) => {
+  const formatWeeklyTrendValue = (value, metric) => {
     const numeric = parseMetricNumber(value);
-    if (unit === 'kcal' || unit === 'min') return `${Math.round(numeric)} ${unit}`;
-    return `${numeric.toFixed(1)} ${unit}`;
+    if (metric.key === 'calories' && numeric > 1000) {
+      return `${(numeric / 1000).toFixed(1).replace('.0', '')}kg`;
+    }
+    return `${numeric.toFixed(1)} ${metric.unit}`;
   };
 
   const getPointerItem = (items, index = 0) => {
@@ -332,7 +334,7 @@ export default function StatisticsScreen() {
   };
   const formatTotalCalories = (totalCalories) => {
     const calories = Math.max(0, Math.round(totalCalories));
-    if (calories >= 10000) {
+    if (calories >= 1000) {
       const caloriesInKg = calories / 1000;
       return `${caloriesInKg.toLocaleString('pt-BR', {
         minimumFractionDigits: 1,
@@ -361,7 +363,7 @@ export default function StatisticsScreen() {
     },
     {
       key: 'calories',
-      label: 'Calorias queimadas (kcal)',
+      label: 'Calorias queimadas',
       value: formatTotalCalories(lifetimeStats.calories),
       icon: 'flame-outline',
       color: '#C95C5C',
@@ -402,11 +404,13 @@ export default function StatisticsScreen() {
             {yourStatsCards.map((card) => (
               <View style={[styles.yourStatsCard, { backgroundColor: card.color }]} key={card.key}>
                 <View style={styles.yourStatsContent}>
-                  <View style={styles.yourStatsIcon}>
-                    <Ionicons name={card.icon} size={28} color="#FFFFFF" />
+                  <View style={styles.yourStatsHeader}>
+                    <Text style={styles.yourStatsLabel} numberOfLines={2}>{card.label}</Text>
+                    <View style={styles.yourStatsIcon}>
+                      <Ionicons name={card.icon} size={31} color="#FFFFFF" />
+                    </View>
                   </View>
                   <Text style={styles.yourStatsValue}>{card.value}</Text>
-                  <Text style={styles.yourStatsLabel}>{card.label}</Text>
                 </View>
               </View>
             ))}
@@ -450,7 +454,10 @@ export default function StatisticsScreen() {
           </View>
           <View style={styles.trendCard}>
             <Text style={styles.trendSummary}>
-              {weeklyTrendData.reduce((sum, point) => sum + point.value, 0).toFixed(1)} {selectedTrendMetric.unit} nos últimos 7 dias
+              {formatWeeklyTrendValue(
+                weeklyTrendData.reduce((sum, point) => sum + point.value, 0),
+                selectedTrendMetric
+              )} nos últimos 7 dias
             </Text>
             <LineChart
               data={weeklyTrendData}
@@ -487,7 +494,7 @@ export default function StatisticsScreen() {
               }}
             />
             <Text style={styles.trendCaption}>
-              {weeklyTrendDescription}: {formatMetricValue(weeklyTrendAverage, selectedTrendMetric.unit)}
+              {weeklyTrendDescription}: {formatWeeklyTrendValue(weeklyTrendAverage, selectedTrendMetric)}
             </Text>
           </View>
         </View>
@@ -498,24 +505,23 @@ export default function StatisticsScreen() {
               <Text style={styles.sectionEyebrow}>ESTE MÊS</Text>
               <Text style={styles.dashboardSectionTitle}>Resumo mensal</Text>
             </View>
-            <Ionicons name="stats-chart-outline" size={22} color="#CBD5E1" />
           </View>
           <View style={styles.monthlySummaryGrid}>
             <View style={[styles.monthlySummaryCard, styles.monthlySummaryCardTall, styles.monthlySessionsCard]}>
-              <Ionicons name="fitness-outline" size={28} color="#FFFFFF" />
+              <Ionicons name="fitness-outline" size={31} color="#FFFFFF" />
               <Text style={styles.monthlySummaryValue}>{formatCompactNumber(monthlySummary.sessions)}</Text>
               <Text style={styles.monthlySummaryLabel}>Sessões no mês</Text>
             </View>
             <View style={styles.monthlySummarySide}>
               <View style={[styles.monthlySummaryCard, styles.monthlyCaloriesCard]}>
-                <Ionicons name="flame-outline" size={21} color="#FFFFFF" />
+                <Ionicons name="flame-outline" size={31} color="#FFFFFF" />
                 <View style={styles.monthlySummaryCopy}>
                   <Text style={styles.monthlySummaryValueSmall}>{formatMonthlyCalories(monthlySummary.calories)}</Text>
                   <Text style={styles.monthlySummaryLabel}>Calorias queimadas</Text>
                 </View>
               </View>
               <View style={[styles.monthlySummaryCard, styles.monthlyStepsCard]}>
-                <Ionicons name="footsteps-outline" size={21} color="#FFFFFF" />
+                <Ionicons name="footsteps-outline" size={31} color="#FFFFFF" />
                 <View style={styles.monthlySummaryCopy}>
                   <Text style={styles.monthlySummaryValueSmall}>{formatCompactNumber(monthlySummary.steps)}</Text>
                   <Text style={styles.monthlySummaryLabel}>Passos realizados</Text>
@@ -739,24 +745,32 @@ const styles = StyleSheet.create({
     flex: 1,
     zIndex: 1,
   },
+  yourStatsHeader: {
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
   yourStatsIcon: {
     width: 34,
     height: 34,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 15,
+    flexShrink: 0,
   },
   yourStatsValue: {
     textAlign: 'center',
     color: '#FFFFFF',
     fontSize: 26,
     fontWeight: '900',
-    marginBottom: 5,
+    marginTop: 20,
   },
   yourStatsLabel: {
-    textAlign: 'center',
+    flex: 1,
+    textAlign: 'left',
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
   },
   compareTabs: {
