@@ -4,12 +4,16 @@ import {
   Text,
   View,
   ScrollView,
+  Modal,
+  Dimensions,
   TouchableOpacity,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { LineChart } from 'react-native-gifted-charts';
 import { BikeContext } from '../context/BikeContext';
 import { listExerciseRecords } from '../utils/exerciseStorage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { COMPLETED_WEEKLY_GOALS_KEY } from '../utils/weeklyGoals';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 
@@ -17,6 +21,7 @@ const ACTIVITY_COLORS = {
   indoor: '#F97316',
   walk: '#7DD3FC',
 };
+const SCREEN_WIDTH = Dimensions.get('window').width;
 const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const hexToRgba = (hex, alpha) => {
   const normalized = hex.replace('#', '');
@@ -41,6 +46,9 @@ const formatCompactNumber = (value) => {
   return `${compact.toFixed(1).replace('.0', '')}k`;
 };
 
+const formatTotalDistance = (value) =>
+  `${Math.round(Number(value) || 0).toLocaleString('pt-BR')}km`;
+
 const formatMonthlyCalories = (value) => {
   const calories = Math.max(0, Math.round(Number(value) || 0));
   if (calories >= 1000) return `${(calories / 1000).toFixed(1).replace('.0', '')}Kg`;
@@ -54,12 +62,15 @@ export default function StatisticsScreen() {
   const [compareMetric, setCompareMetric] = useState('distance');
   const [frequencyType, setFrequencyType] = useState('indoor');
   const [selectedMonths, setSelectedMonths] = useState({});
+  const [completedWeeks, setCompletedWeeks] = useState([]);
+  const [selectedCompletedWeek, setSelectedCompletedWeek] = useState(null);
   const [headerHeight, setHeaderHeight] = useState(0);
   const { refreshTrigger } = useContext(BikeContext);
 
   useFocusEffect(
     React.useCallback(() => {
       loadRecords();
+      loadCompletedWeeks();
     }, [refreshTrigger])
   );
 
@@ -69,6 +80,16 @@ export default function StatisticsScreen() {
       setRecords(savedRecords);
     } catch (error) {
       console.error('Error loading records:', error);
+    }
+  };
+
+  const loadCompletedWeeks = async () => {
+    try {
+      const savedWeeks = await AsyncStorage.getItem(COMPLETED_WEEKLY_GOALS_KEY);
+      const parsedWeeks = savedWeeks ? JSON.parse(savedWeeks) : [];
+      setCompletedWeeks(Array.isArray(parsedWeeks) ? parsedWeeks : []);
+    } catch (error) {
+      console.error('Error loading completed weeks:', error);
     }
   };
 
@@ -277,9 +298,7 @@ export default function StatisticsScreen() {
     if (!isCurrentMonth) return '#F8FAFC';
     if (isFuture) return '#F1F5F9';
     if (count === 0 || maxCount === 0) return '#E2E8F0';
-    const intensity = count / maxCount;
-    const alpha = 0.2 + intensity * 0.8;
-    return hexToRgba(baseColor, alpha);
+    return hexToRgba(baseColor, 1);
   };
   const navigateToHistoryDate = (dayKey, type) => {
     router.navigate({
@@ -344,6 +363,37 @@ export default function StatisticsScreen() {
     return `${calories.toLocaleString('pt-BR')} kcal`;
   };
 
+  const completedWeekSummaries = useMemo(() => {
+    const summaries = new Map();
+    completedWeeks.forEach((completion) => {
+      const current = summaries.get(completion.weekStart) || {
+        weekStart: completion.weekStart,
+        weekEnd: completion.weekEnd,
+        sessions: 0,
+        time: 0,
+        distance: 0,
+        calories: 0,
+        steps: 0,
+      };
+      current.weekEnd = completion.weekEnd;
+      current.sessions += Number(completion.stats?.sessionsCount) || 0;
+      current.time += parseMetricNumber(completion.stats?.totalTime);
+      current.distance += parseMetricNumber(completion.stats?.totalDistance);
+      current.calories += parseMetricNumber(completion.stats?.totalCalories);
+      current.steps += Number(completion.stats?.totalSteps) || 0;
+      summaries.set(completion.weekStart, current);
+    });
+    return Array.from(summaries.values()).sort((a, b) => b.weekStart.localeCompare(a.weekStart));
+  }, [completedWeeks]);
+
+  const formatCompletedWeekRange = (weekStart, weekEnd) => {
+    const formatDate = (value) => new Date(value).toLocaleDateString('pt-BR', {
+      day: 'numeric',
+      month: 'short',
+    }).replace('.', '');
+    return `${formatDate(weekStart)} - ${formatDate(weekEnd)}`;
+  };
+
   const yourStatsCards = [
     {
       key: 'exercises',
@@ -372,7 +422,7 @@ export default function StatisticsScreen() {
     {
       key: 'distance',
       label: 'Distância total percorrida',
-      value: `${lifetimeStats.distance.toFixed(1)} km`,
+      value: formatTotalDistance(lifetimeStats.distance),
       icon: 'map-outline',
       color: '#668DC4',
       progress: Math.min(lifetimeStats.distance / 500, 1),
@@ -380,6 +430,70 @@ export default function StatisticsScreen() {
   ];
   return (
     <View style={styles.container}>
+      <Modal
+        visible={Boolean(selectedCompletedWeek)}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setSelectedCompletedWeek(null)}
+      >
+        <View style={styles.completedWeekModal}>
+          <View style={styles.completedWeekModalHeader}>
+            <View>
+              <Text style={styles.completedWeekModalEyebrow}>META SEMANAL CONCLUÍDA</Text>
+              <Text style={styles.completedWeekModalTitle}>
+                {selectedCompletedWeek && formatCompletedWeekRange(
+                  selectedCompletedWeek.weekStart,
+                  selectedCompletedWeek.weekEnd
+                )}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.completedWeekCloseButton}
+              onPress={() => setSelectedCompletedWeek(null)}
+            >
+              <Ionicons name="close" size={22} color="#E2E8F0" />
+            </TouchableOpacity>
+          </View>
+          {selectedCompletedWeek && (
+            <View style={styles.completedWeekMetrics}>
+              <View style={[styles.completedWeekMetric, styles.completedWeekMetricPurple]}>
+                <Ionicons name="fitness-outline" size={30} color="#FFFFFF" />
+                <View style={styles.completedWeekMetricCopy}>
+                  <Text style={styles.completedWeekMetricValue}>
+                    {formatCompactNumber(selectedCompletedWeek.sessions)}
+                  </Text>
+                  <Text style={styles.completedWeekMetricLabel}>exercícios</Text>
+                </View>
+              </View>
+              <View style={[styles.completedWeekMetric, styles.completedWeekMetricGreen]}>
+                <Ionicons name="time-outline" size={30} color="#FFFFFF" />
+                <View style={styles.completedWeekMetricCopy}>
+                  <Text style={styles.completedWeekMetricValue}>
+                    {formatTotalMinutes(selectedCompletedWeek.time)}
+                  </Text>
+                  <Text style={styles.completedWeekMetricLabel}>tempo ativo</Text>
+                </View>
+              </View>
+              <View style={[styles.completedWeekMetric, styles.completedWeekMetricBlue]}>
+                <Ionicons name="map-outline" size={30} color="#FFFFFF" />
+                <View style={styles.completedWeekMetricCopy}>
+                  <Text style={styles.completedWeekMetricValue}>{formatTotalDistance(selectedCompletedWeek.distance)}</Text>
+                  <Text style={styles.completedWeekMetricLabel}>distância</Text>
+                </View>
+              </View>
+              <View style={[styles.completedWeekMetric, styles.completedWeekMetricRed]}>
+                <Ionicons name="flame-outline" size={30} color="#FFFFFF" />
+                <View style={styles.completedWeekMetricCopy}>
+                  <Text style={styles.completedWeekMetricValue}>
+                    {formatTotalCalories(selectedCompletedWeek.calories)}
+                  </Text>
+                  <Text style={styles.completedWeekMetricLabel}>calorias</Text>
+                </View>
+              </View>
+            </View>
+          )}
+        </View>
+      </Modal>
       <View
         style={styles.header}
         onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}
@@ -643,6 +757,47 @@ export default function StatisticsScreen() {
                 );
               })()}
             </View>
+
+            {completedWeekSummaries.length > 0 && (
+              <View style={styles.section}>
+                <View style={styles.sectionHeadingRow}>
+                  <View>
+                    <Text style={styles.sectionEyebrow}>SEMANAS CONCLUÍDAS</Text>
+                    <Text style={styles.dashboardSectionTitle}>Metas semanais concluídas</Text>
+                  </View>
+                </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.completedWeekRow}
+                >
+                  {completedWeekSummaries.map((week) => (
+                    <TouchableOpacity
+                      key={week.weekStart}
+                      style={styles.completedWeekCard}
+                      onPress={() => setSelectedCompletedWeek(week)}
+                    >
+                      <View style={styles.completedWeekCardTop}>
+                        <Text style={styles.completedWeekCardEyebrow}>SEMANA CONCLUÍDA</Text>
+                        <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
+                      </View>
+                      <View style={styles.completedWeekCardContent}>
+                        <View style={styles.completedWeekCardCopy}>
+                          <Text style={styles.completedWeekCardDate}>
+                            {formatCompletedWeekRange(week.weekStart, week.weekEnd)}
+                          </Text>
+                          <Text style={styles.completedWeekCardValue}>{week.sessions} exercícios</Text>
+                          <Text style={styles.completedWeekCardHint}>Toque para ver o resumo</Text>
+                        </View>
+                        <View style={styles.completedWeekCardIcon}>
+                          <Ionicons name="checkmark-circle-outline" size={42} color="#FFFFFF" />
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
 
             <View style={{ height: 40 }} />
       </ScrollView>
@@ -978,6 +1133,135 @@ const styles = StyleSheet.create({
   },
   frequencyTabTextActive: {
     color: '#000000',
+  },
+  completedWeekRow: {
+    paddingHorizontal: 24,
+    gap: 12,
+  },
+  completedWeekCard: {
+    width: SCREEN_WIDTH - 48,
+    minHeight: 148,
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: '#624E8C',
+  },
+  completedWeekCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  completedWeekCardContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  completedWeekCardCopy: {
+    flex: 1,
+  },
+  completedWeekCardIcon: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+  },
+  completedWeekCardEyebrow: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  completedWeekCardDate: {
+    color: '#D1D5DB',
+    fontSize: 19,
+    fontWeight: '800',
+    textTransform: 'capitalize',
+  },
+  completedWeekCardValue: {
+    color: '#fff',
+    fontSize: 27,
+    fontWeight: '900',
+    marginTop: 8,
+  },
+  completedWeekCardHint: {
+    color: '#D1D5DB',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 5,
+  },
+  completedWeekModal: {
+    flex: 1,
+    backgroundColor: '#0F172A',
+    paddingTop: 64,
+    paddingHorizontal: 24,
+  },
+  completedWeekModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 32,
+  },
+  completedWeekModalEyebrow: {
+    color: '#38BDF8',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.3,
+    marginBottom: 8,
+  },
+  completedWeekModalTitle: {
+    color: '#FFFFFF',
+    fontSize: 32,
+    fontWeight: '900',
+    textTransform: 'capitalize',
+  },
+  completedWeekCloseButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1E293B',
+  },
+  completedWeekMetrics: {
+    gap: 12,
+  },
+  completedWeekMetric: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 92,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+  },
+  completedWeekMetricPurple: {
+    backgroundColor: '#624E8C',
+  },
+  completedWeekMetricGreen: {
+    backgroundColor: '#62A77C',
+  },
+  completedWeekMetricBlue: {
+    backgroundColor: '#668DC4',
+  },
+  completedWeekMetricRed: {
+    backgroundColor: '#C95C5C',
+  },
+  completedWeekMetricCopy: {
+    marginLeft: 16,
+  },
+  completedWeekMetricValue: {
+    color: '#FFFFFF',
+    fontSize: 29,
+    fontWeight: '900',
+    marginTop: 5,
+  },
+  completedWeekMetricLabel: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
   },
   sectionMeta: {
     color: '#64748B',

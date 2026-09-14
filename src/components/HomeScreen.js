@@ -23,7 +23,10 @@ import WeeklyGoalsSetupModal from './WeeklyGoalsSetupModal';
 import { listExerciseRecords } from '../utils/exerciseStorage';
 import {
   DEFAULT_WEEKLY_GOALS,
+  COMPLETED_WEEKLY_GOALS_KEY,
   WEEKLY_GOALS_KEY,
+  getMondayOfWeek,
+  getNextMondayOfWeek,
   normalizeWeeklyGoals,
   normalizeStepsGoal,
 } from '../utils/weeklyGoals';
@@ -126,12 +129,16 @@ export default function HomeScreen() {
       return acc;
     }, {})
   ).current;
-  const { refreshTrigger } = useContext(BikeContext);
+  const { refreshTrigger, triggerRefresh } = useContext(BikeContext);
 
   useFocusEffect(
     React.useCallback(() => {
-      loadData();
-      checkWeekReset();
+      const refreshHome = async () => {
+        await checkWeekReset();
+        await loadData();
+      };
+
+      refreshHome();
     }, [refreshTrigger])
   );
 
@@ -177,10 +184,12 @@ export default function HomeScreen() {
 
   const saveWeeklyGoals = async (nextGoals) => {
     try {
-      setWeeklyGoalsByType(nextGoals);
-      await AsyncStorage.setItem(WEEKLY_GOALS_KEY, JSON.stringify(nextGoals));
+      const normalizedGoals = normalizeWeeklyGoals(nextGoals);
+      setWeeklyGoalsByType(normalizedGoals);
+      await AsyncStorage.setItem(WEEKLY_GOALS_KEY, JSON.stringify(normalizedGoals));
       setShowGoalsSetup(false);
-      await calculateWeeklyStats(records, nextGoals, { allowCelebration: true });
+      await calculateWeeklyStats(records, normalizedGoals, { allowCelebration: true });
+      triggerRefresh();
     } catch (error) {
       console.error('Error saving weekly goals:', error);
     }
@@ -196,24 +205,6 @@ export default function HomeScreen() {
     const intervalId = setInterval(updateGreeting, 60 * 1000);
     return () => clearInterval(intervalId);
   }, []);
-
-  const getMondayOfWeek = () => {
-    const today = new Date();
-    const day = today.getDay();
-    const diff = day === 0 ? -6 : 1 - day; 
-    const monday = new Date(today);
-    monday.setDate(today.getDate() + diff);
-    monday.setHours(0, 0, 0, 0);
-    return monday;
-  };
-
-  const getSundayOfWeek = () => {
-    const monday = getMondayOfWeek();
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    sunday.setHours(23, 59, 59, 999);
-    return sunday;
-  };
 
   const checkWeekReset = async () => {
     try {
@@ -272,7 +263,13 @@ export default function HomeScreen() {
     );
   };
 
-  const syncGoalCompletionState = async (type, isCompletedNow, options = { allowCelebration: true }) => {
+  const syncGoalCompletionState = async (
+    type,
+    isCompletedNow,
+    stats,
+    goalsByType,
+    options = { allowCelebration: true }
+  ) => {
     const wasCompleted = goalsCompletedByType[type];
     if (isCompletedNow === wasCompleted) return;
 
@@ -280,9 +277,32 @@ export default function HomeScreen() {
     await AsyncStorage.setItem(`goalsCompletedThisWeek:${type}`, isCompletedNow ? 'true' : 'false');
 
     if (isCompletedNow && !wasCompleted && options.allowCelebration) {
-      setShowCelebration(true);
-      setCelebrationType(type);
-      await NotificationService.addGoalCompletedNotification();
+      const weekStart = getMondayOfWeek();
+      const weekEnd = getNextMondayOfWeek();
+      const savedCompletions = await AsyncStorage.getItem(COMPLETED_WEEKLY_GOALS_KEY);
+      const completions = savedCompletions ? JSON.parse(savedCompletions) : [];
+      const alreadyRecorded = completions.some(
+        (completion) => completion.weekStart === weekStart.toISOString() && completion.type === type
+      );
+
+      if (!alreadyRecorded) {
+        const completion = {
+          id: `${weekStart.toISOString()}-${type}`,
+          type,
+          weekStart: weekStart.toISOString(),
+          weekEnd: weekEnd.toISOString(),
+          stats,
+          goals: goalsByType[type],
+          completedAt: new Date().toISOString(),
+        };
+        await AsyncStorage.setItem(
+          COMPLETED_WEEKLY_GOALS_KEY,
+          JSON.stringify([completion, ...completions].slice(0, 52))
+        );
+        setShowCelebration(true);
+        setCelebrationType(type);
+        await NotificationService.addGoalCompletedNotification();
+      }
       return;
     }
 
@@ -297,11 +317,11 @@ export default function HomeScreen() {
     options = { allowCelebration: true }
   ) => {
     const monday = getMondayOfWeek();
-    const sunday = getSundayOfWeek();
+    const nextMonday = getNextMondayOfWeek();
 
     const weeklyRecords = allRecords.filter(record => {
       const recordDate = new Date(record.date);
-      return recordDate >= monday && recordDate <= sunday;
+      return recordDate >= monday && recordDate < nextMonday;
     });
 
     const byType = {
@@ -336,8 +356,8 @@ export default function HomeScreen() {
     const indoorCompletedNow = areGoalsCompletedForType('indoor', nextWeeklyStatsByType.indoor, goalsByType);
     const walkCompletedNow = areGoalsCompletedForType('walk', nextWeeklyStatsByType.walk, goalsByType);
 
-    await syncGoalCompletionState('indoor', indoorCompletedNow, options);
-    await syncGoalCompletionState('walk', walkCompletedNow, options);
+    await syncGoalCompletionState('indoor', indoorCompletedNow, nextWeeklyStatsByType.indoor, goalsByType, options);
+    await syncGoalCompletionState('walk', walkCompletedNow, nextWeeklyStatsByType.walk, goalsByType, options);
   };
 
 
@@ -399,9 +419,19 @@ export default function HomeScreen() {
   const getTrackerLabel = (type) => (type === 'walk' ? 'Caminhada' : 'Bic. Ergométrica');
 
   const combinedWeeklySessions = weeklyStatsByType.indoor.sessionsCount + weeklyStatsByType.walk.sessionsCount;
-  const totalSessionsAll = records.length;
   const activeWeeklyStats = weeklyStatsByType[activeTracker];
   const activeWeeklyGoals = weeklyGoalsByType[activeTracker];
+  const latestRecord = records[0];
+  const latestRecordLabel = latestRecord
+    ? `${getTrackerLabel(latestRecord.activityType)} · ${latestRecord.displayDate || formatDate(latestRecord.date)}`
+    : 'Nenhuma atividade registrada ainda';
+  const latestRecordSummary = latestRecord
+    ? `${latestRecord.time || 0} min · ${latestRecord.distance || 0} km`
+    : 'Registre um exercício para acompanhar sua evolução.';
+  const currentStreak = getStreak();
+  const insight = goalsCompletedByType[activeTracker]
+    ? `Meta de ${getTrackerLabel(activeTracker).toLowerCase()} concluída nesta semana.`
+    : `Você completou ${getProgressPercentage(activeWeeklyStats.totalTime, activeWeeklyGoals.time)}% da meta de tempo.`;
   const celebrationStats = weeklyStatsByType[celebrationType];
   const celebrationGoals = weeklyGoalsByType[celebrationType];
   const goalMetricCards = useMemo(
@@ -772,21 +802,40 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      <View style={styles.statsGrid}>
-        {[
-          { value: combinedWeeklySessions, label: 'Sessões', subtitle: 'Nesta Semana' },
-          { value: activeWeeklyStats.averageSpeed, label: 'Vel. Média', subtitle: 'Km/h' },
-          { value: getStreak(), label: 'Sequência', subtitle: 'Dias' },
-          { value: totalSessionsAll, label: 'Total', subtitle: 'Sessões' },
-        ].map((stat, index) => (
-          <View key={index} style={styles.glassStatCard}>
-            <View style={styles.statGradient}>
-              <Text style={styles.statValue}>{stat.value}</Text>
-              <Text style={styles.statLabel}>{stat.label}</Text>
-              <Text style={styles.statSubtitle}>{stat.subtitle}</Text>
-            </View>
+      <View style={styles.homeSummaryList}>
+        <View style={[styles.homeSummaryCard, styles.homeSummaryCardBlue]}>
+          <View style={styles.homeSummaryIcon}>
+            <Ionicons name="pulse-outline" size={28} color="#FFFFFF" />
           </View>
-        ))}
+          <View style={styles.homeSummaryCopy}>
+            <Text style={styles.homeSummaryLabel}>Atividade recente</Text>
+            <Text style={styles.homeSummaryValue} numberOfLines={1}>{latestRecordLabel}</Text>
+            <Text style={styles.homeSummarySubtitle} numberOfLines={2}>{latestRecordSummary}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
+        </View>
+
+        <View style={[styles.homeSummaryCard, styles.homeSummaryCardGreen]}>
+          <View style={styles.homeSummaryIcon}>
+            <Ionicons name="flame-outline" size={28} color="#FFFFFF" />
+          </View>
+          <View style={styles.homeSummaryCopy}>
+            <Text style={styles.homeSummaryLabel}>Sequência semanal</Text>
+            <Text style={styles.homeSummaryValue}>{currentStreak} {currentStreak === 1 ? 'dia' : 'dias'}</Text>
+            <Text style={styles.homeSummarySubtitle}>Dias consecutivos com exercício</Text>
+          </View>
+        </View>
+
+        <View style={[styles.homeSummaryCard, styles.homeSummaryCardPurple]}>
+          <View style={styles.homeSummaryIcon}>
+            <Ionicons name="bulb-outline" size={28} color="#FFFFFF" />
+          </View>
+          <View style={styles.homeSummaryCopy}>
+            <Text style={styles.homeSummaryLabel}>Insight da semana</Text>
+            <Text style={styles.homeSummaryValue} numberOfLines={2}>{insight}</Text>
+            <Text style={styles.homeSummarySubtitle}>{combinedWeeklySessions} sessões nesta semana</Text>
+          </View>
+        </View>
       </View>
       <View style={{ height: 40 }} />
     </ScrollView>
@@ -988,6 +1037,61 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     justifyContent: 'space-between',
     
+  },
+  homeSummaryList: {
+    paddingHorizontal: 24,
+    marginBottom: 24,
+    gap: 12,
+  },
+  homeSummaryCard: {
+    minHeight: 94,
+    borderRadius: 18,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  homeSummaryCardBlue: {
+    backgroundColor: '#668DC4',
+  },
+  homeSummaryCardGreen: {
+    backgroundColor: '#62A77C',
+  },
+  homeSummaryCardPurple: {
+    backgroundColor: '#624E8C',
+  },
+  homeSummaryIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+  },
+  homeSummaryCopy: {
+    flex: 1,
+  },
+  homeSummaryLabel: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  homeSummaryValue: {
+    color: '#FFFFFF',
+    fontSize: 19,
+    lineHeight: 24,
+    fontWeight: '900',
+  },
+  homeSummarySubtitle: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600',
+    marginTop: 3,
+    opacity: 0.9,
   },
   glassStatCard: {
     backgroundColor: '#040404',

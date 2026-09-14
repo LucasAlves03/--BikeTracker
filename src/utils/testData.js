@@ -35,6 +35,15 @@ const formatDisplayTime = (date) =>
     minute: '2-digit',
   });
 
+const getMondayOfCurrentWeek = () => {
+  const today = new Date();
+  const daysFromMonday = today.getDay() === 0 ? 6 : today.getDay() - 1;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - daysFromMonday);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+};
+
 const createRecord = ({ date, activityType, index, values = {} }) => {
   const distance = values.distance ?? round(
     activityType === 'walk' ? randomBetween(1.5, 8) : randomBetween(4, 18),
@@ -81,7 +90,7 @@ export const countGeneratedRecords = async () => {
 export const addRandomRecords = async (count) => {
   const records = Array.from({ length: count }, (_, index) => {
     const date = new Date();
-    date.setDate(date.getDate() - Math.floor(Math.random() * 90));
+    date.setDate(1 + Math.floor(Math.random() * date.getDate()));
     date.setHours(8 + Math.floor(Math.random() * 12), Math.floor(Math.random() * 60), 0, 0);
     const activityType = Math.random() > 0.5 ? 'walk' : 'indoor';
     return createRecord({ date, activityType, index });
@@ -95,23 +104,50 @@ export const addCompletedWeek = async () => {
   const goals = normalizeWeeklyGoals(
     savedGoals ? JSON.parse(savedGoals) : DEFAULT_WEEKLY_GOALS
   );
-  const target = {
-    time: (Number(goals.indoor.time) + Number(goals.walk.time)) * 1.15,
-    distance: (Number(goals.indoor.distance) + Number(goals.walk.distance)) * 1.15,
-    calories: (Number(goals.indoor.calories) + Number(goals.walk.calories)) * 1.15,
-    steps: (Number(goals.indoor.steps) + Number(goals.walk.steps)) * 1.15,
+  const sessionTypes = ['indoor', 'walk', 'indoor', 'walk', 'indoor', 'walk', 'indoor'];
+  const sessionsByType = sessionTypes.reduce((counts, type) => ({
+    ...counts,
+    [type]: counts[type] + 1,
+  }), { indoor: 0, walk: 0 });
+  const targetsByType = {
+    indoor: {
+      time: Number(goals.indoor.time) * 1.15,
+      distance: Number(goals.indoor.distance) * 1.15,
+      calories: Number(goals.indoor.calories) * 1.15,
+      steps: 0,
+    },
+    walk: {
+      time: Number(goals.walk.time) * 1.15,
+      distance: Number(goals.walk.distance) * 1.15,
+      calories: Number(goals.walk.calories) * 1.15,
+      steps: Number(goals.walk.steps) * 1.15,
+    },
   };
-  const walkingSessions = 4;
-  const today = new Date();
-  const records = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(today);
-    date.setDate(today.getDate() - (6 - index));
+  const totalsByType = { indoor: {}, walk: {} };
+  const records = sessionTypes.map((activityType, index) => {
+    const date = getMondayOfCurrentWeek();
+    date.setDate(date.getDate() + index);
     date.setHours(8 + (index % 4), 30, 0, 0);
-    const activityType = index % 2 === 0 ? 'indoor' : 'walk';
-    const distance = target.distance / 7;
-    const time = target.time / 7;
-    const calories = target.calories / 7;
-    const steps = target.steps / walkingSessions;
+    const typeSessionIndex = totalsByType[activityType].count || 0;
+    const sessionsForType = sessionsByType[activityType];
+    const target = targetsByType[activityType];
+    const getDistributedValue = (metric, decimals = 0) => {
+      const previousTotal = totalsByType[activityType][metric] || 0;
+      if (typeSessionIndex === sessionsForType - 1) {
+        return round(target[metric] - previousTotal, decimals);
+      }
+      return round(target[metric] / sessionsForType, decimals);
+    };
+    const distance = getDistributedValue('distance', 1);
+    const time = getDistributedValue('time');
+    const calories = getDistributedValue('calories');
+    const steps = getDistributedValue('steps');
+
+    ['distance', 'time', 'calories', 'steps'].forEach((metric) => {
+      totalsByType[activityType][metric] = (totalsByType[activityType][metric] || 0)
+        + (metric === 'distance' ? distance : metric === 'time' ? time : metric === 'calories' ? calories : steps);
+    });
+    totalsByType[activityType].count = typeSessionIndex + 1;
 
     return createRecord({
       date,

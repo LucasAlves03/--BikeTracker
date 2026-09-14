@@ -1,4 +1,5 @@
 export const WEEKLY_GOALS_KEY = 'weeklyGoalsByType';
+export const COMPLETED_WEEKLY_GOALS_KEY = 'completedWeeklyGoals';
 
 export const DEFAULT_WEEKLY_GOALS = {
   indoor: {
@@ -34,3 +35,18 @@ export const normalizeWeeklyGoals = (savedGoals) => ({
     steps: normalizeStepsGoal(savedGoals?.walk?.steps ?? DEFAULT_WEEKLY_GOALS.walk.steps),
   },
 });
+
+export const getMondayOfWeek = (dateValue = new Date()) => {
+  const date = new Date(dateValue);
+  const daysFromMonday = date.getDay() === 0 ? 6 : date.getDay() - 1;
+  const monday = new Date(date);
+  monday.setDate(date.getDate() - daysFromMonday);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+};
+
+export const getNextMondayOfWeek = (dateValue = new Date()) => {
+  const nextMonday = getMondayOfWeek(dateValue);
+  nextMonday.setDate(nextMonday.getDate() + 7);
+  return nextMonday;
+};

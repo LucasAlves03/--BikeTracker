@@ -87,7 +87,7 @@ export default function HistoryScreen() {
     return `${year}-${month}-${day}`;
   };
 
-  const getFilteredRecords = () => {
+  const filteredRecords = useMemo(() => {
     const now = new Date();
     
     if (filter === 'week') {
@@ -98,8 +98,8 @@ export default function HistoryScreen() {
       return records.filter(r => new Date(r.date) >= oneMonthAgo);
     }
     
-    return [...records].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  };
+    return records;
+  }, [records, filter]);
 
   const deleteRecord = async (id) => {
     Alert.alert(
@@ -228,18 +228,17 @@ export default function HistoryScreen() {
     ])
   );
 
-  const filteredRecords = getFilteredRecords();
   const groupedRecords = useMemo(() => {
-    const groups = [];
+    const groupsByDay = new Map();
 
     filteredRecords.forEach((record) => {
       const groupKey = getDayKey(record.date);
-      const existingGroup = groups.find((group) => group.key === groupKey);
+      const existingGroup = groupsByDay.get(groupKey);
 
       if (existingGroup) {
         existingGroup.records.push(record);
       } else {
-        groups.push({
+        groupsByDay.set(groupKey, {
           key: groupKey,
           label: getDateGroupLabel(record.date),
           records: [record],
@@ -247,10 +246,10 @@ export default function HistoryScreen() {
       }
     });
 
-    return groups;
+    return Array.from(groupsByDay.values());
   }, [filteredRecords]);
   const highlightRecordIds = useMemo(() => {
-    if (!activeHighlight?.date) return [];
+    if (!activeHighlight?.date) return new Set();
     return filteredRecords
       .filter((record) => {
         const matchesDate = getDayKey(record.date) === activeHighlight.date;
@@ -258,12 +257,12 @@ export default function HistoryScreen() {
           !activeHighlight.type || getActivityType(record) === activeHighlight.type;
         return matchesDate && matchesType;
       })
-      .map((record) => record.id);
+      .reduce((ids, record) => ids.add(record.id), new Set());
   }, [activeHighlight, filteredRecords]);
 
   useEffect(() => {
-    if (!highlightRecordIds.length) return;
-    const firstMatchId = highlightRecordIds[0];
+    if (!highlightRecordIds.size) return;
+    const firstMatchId = highlightRecordIds.values().next().value;
     const y = cardPositionsRef.current[firstMatchId];
     if (typeof y === 'number' && scrollViewRef.current) {
       scrollViewRef.current.scrollTo({ y: Math.max(y - 24, 0), animated: true });
@@ -334,7 +333,7 @@ export default function HistoryScreen() {
                   <Text style={styles.dateGroupLabel}>{group.label}</Text>
                   {group.records.map((record, index) => {
                     const activity = getActivityStyle(getActivityType(record));
-                    const isHighlighted = highlightRecordIds.includes(record.id);
+                    const isHighlighted = highlightRecordIds.has(record.id);
                     const isLast = index === group.records.length - 1;
 
                     return (

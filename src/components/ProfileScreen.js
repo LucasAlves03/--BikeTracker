@@ -98,8 +98,12 @@ const formatProgressValue = (value, metric) => {
   return Math.round(parseMetricNumber(value)).toLocaleString('pt-BR');
 };
 
-const formatInlineNumber = (value) =>
-  Math.round(parseMetricNumber(value)).toLocaleString('en-US');
+const formatInlineCalories = (value) => `${(parseMetricNumber(value) / 1000).toFixed(1)}kg`;
+
+const formatInlineSteps = (value) => {
+  const steps = parseStepsNumber(value);
+  return steps >= 1000 ? `${(steps / 1000).toFixed(1)}k` : `${steps}`;
+};
 
 const formatDuration = (minutes) => {
   const total = Math.round(parseMetricNumber(minutes));
@@ -137,6 +141,7 @@ export default function ProfileScreen() {
   const [form, setForm] = useState(INITIAL_FORM);
   const [headerHeight, setHeaderHeight] = useState(0);
   const [weeklyGoalsByType, setWeeklyGoalsByType] = useState(DEFAULT_WEEKLY_GOALS);
+  const [activeWeeklyType, setActiveWeeklyType] = useState('indoor');
   const { refreshTrigger } = React.useContext(BikeContext);
 
   const loadProfile = useCallback(async () => {
@@ -201,6 +206,20 @@ export default function ProfileScreen() {
     const weeklyCalories = weeklyRecords.reduce((sum, record) => sum + parseMetricNumber(record.calories), 0);
     const weeklySteps = weeklyRecords.reduce((sum, record) => sum + estimateSteps(record), 0);
 
+    const weeklyStatsByType = ['indoor', 'walk'].reduce((statsByType, type) => {
+      const typeRecords = weeklyRecords.filter((record) => (record.activityType || 'indoor') === type);
+      statsByType[type] = {
+        values: {
+          time: typeRecords.reduce((sum, record) => sum + parseMetricNumber(record.time), 0),
+          distance: typeRecords.reduce((sum, record) => sum + parseMetricNumber(record.distance), 0),
+          calories: typeRecords.reduce((sum, record) => sum + parseMetricNumber(record.calories), 0),
+          steps: typeRecords.reduce((sum, record) => sum + estimateSteps(record), 0),
+        },
+        goals: weeklyGoalsByType[type],
+      };
+      return statsByType;
+    }, {});
+
     const latestRecords = [...records]
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 3);
@@ -246,9 +265,12 @@ export default function ProfileScreen() {
         steps: weeklySteps,
       },
       weeklyGoals,
+      weeklyStatsByType,
       latestRecords,
     };
   }, [records, weeklyGoalsByType]);
+
+  const selectedWeeklyStats = stats.weeklyStatsByType[activeWeeklyType];
 
   const openCreateForm = () => {
     setForm(INITIAL_FORM);
@@ -418,12 +440,12 @@ export default function ProfileScreen() {
               </View>
               <View style={styles.metricSummaryDivider} />
               <View style={styles.metricSummaryItem}>
-                <Text style={styles.metricSummaryValue}>{formatInlineNumber(stats.totalCalories)}</Text>
-                <Text style={styles.metricSummaryLabel}>Kcal</Text>
+                <Text style={styles.metricSummaryValue}>{formatInlineCalories(stats.totalCalories)}</Text>
+                <Text style={styles.metricSummaryLabel}>Calorias</Text>
               </View>
               <View style={styles.metricSummaryDivider} />
               <View style={styles.metricSummaryItem}>
-                <Text style={styles.metricSummaryValue}>{formatSteps(stats.totalSteps)}</Text>
+                <Text style={styles.metricSummaryValue}>{formatInlineSteps(stats.totalSteps)}</Text>
                 <Text style={styles.metricSummaryLabel}>Passos</Text>
               </View>
             </View>
@@ -506,58 +528,76 @@ export default function ProfileScreen() {
 
           {/* ---- Metas Semanais progress bars ---- */}
           <Text style={styles.sectionTitle}>Metas Semanais</Text>
+          <View style={styles.weeklyTypeToggle}>
+            {['indoor', 'walk'].map((type) => {
+              const isActive = activeWeeklyType === type;
+              return (
+                <TouchableOpacity
+                  key={type}
+                  style={[styles.weeklyTypeTab, isActive && styles.weeklyTypeTabActive]}
+                  onPress={() => setActiveWeeklyType(type)}
+                >
+                  <Text style={[styles.weeklyTypeTabText, isActive && styles.weeklyTypeTabTextActive]}>
+                    {type === 'walk' ? 'Caminhada' : 'Bicicleta'}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
           <View style={styles.goalsList}>
             <View style={styles.goalRow}>
               <View style={styles.goalHeader}>
                 <Text style={styles.goalLabel}>Tempo</Text>
                 <Text style={styles.goalValue}>
-                  {formatProgressValue(stats.weeklyValues.time, 'time')} / {formatProgressValue(stats.weeklyGoals.time, 'time')} min
+                  {formatProgressValue(selectedWeeklyStats.values.time, 'time')} / {formatProgressValue(selectedWeeklyStats.goals.time, 'time')} min
                 </Text>
               </View>
               <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, styles.fillGreen, { width: `${stats.weeklyProgress.time}%` }]} />
+                <View style={[styles.progressFill, styles.fillGreen, { width: `${getProgressPercent(selectedWeeklyStats.values.time, selectedWeeklyStats.goals.time)}%` }]} />
               </View>
-              <Text style={styles.progressPercent}>{stats.weeklyProgress.time}% da meta</Text>
+              <Text style={styles.progressPercent}>{getProgressPercent(selectedWeeklyStats.values.time, selectedWeeklyStats.goals.time)}% da meta</Text>
             </View>
 
             <View style={styles.goalRow}>
               <View style={styles.goalHeader}>
                 <Text style={styles.goalLabel}>Distancia</Text>
                 <Text style={styles.goalValue}>
-                  {formatProgressValue(stats.weeklyValues.distance, 'distance')} / {formatProgressValue(stats.weeklyGoals.distance, 'distance')} km
+                  {formatProgressValue(selectedWeeklyStats.values.distance, 'distance')} / {formatProgressValue(selectedWeeklyStats.goals.distance, 'distance')} km
                 </Text>
               </View>
               <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, styles.fillBlue, { width: `${stats.weeklyProgress.distance}%` }]} />
+                <View style={[styles.progressFill, styles.fillBlue, { width: `${getProgressPercent(selectedWeeklyStats.values.distance, selectedWeeklyStats.goals.distance)}%` }]} />
               </View>
-              <Text style={styles.progressPercent}>{stats.weeklyProgress.distance}% da meta</Text>
+              <Text style={styles.progressPercent}>{getProgressPercent(selectedWeeklyStats.values.distance, selectedWeeklyStats.goals.distance)}% da meta</Text>
             </View>
 
             <View style={styles.goalRow}>
               <View style={styles.goalHeader}>
                 <Text style={styles.goalLabel}>Calorias</Text>
                 <Text style={styles.goalValue}>
-                  {formatProgressValue(stats.weeklyValues.calories, 'calories')} / {formatProgressValue(stats.weeklyGoals.calories, 'calories')} kcal
+                  {formatProgressValue(selectedWeeklyStats.values.calories, 'calories')} / {formatProgressValue(selectedWeeklyStats.goals.calories, 'calories')} kcal
                 </Text>
               </View>
               <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, styles.fillRed, { width: `${stats.weeklyProgress.calories}%` }]} />
+                <View style={[styles.progressFill, styles.fillRed, { width: `${getProgressPercent(selectedWeeklyStats.values.calories, selectedWeeklyStats.goals.calories)}%` }]} />
               </View>
-              <Text style={styles.progressPercent}>{stats.weeklyProgress.calories}% da meta</Text>
+              <Text style={styles.progressPercent}>{getProgressPercent(selectedWeeklyStats.values.calories, selectedWeeklyStats.goals.calories)}% da meta</Text>
             </View>
 
+            {activeWeeklyType === 'walk' && (
             <View style={styles.goalRow}>
               <View style={styles.goalHeader}>
                 <Text style={styles.goalLabel}>Passos</Text>
                 <Text style={styles.goalValue}>
-                  {formatProgressValue(stats.weeklyValues.steps, 'steps')} / {formatProgressValue(stats.weeklyGoals.steps, 'steps')} passos
+                  {formatProgressValue(selectedWeeklyStats.values.steps, 'steps')} / {formatProgressValue(selectedWeeklyStats.goals.steps, 'steps')} passos
                 </Text>
               </View>
               <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, styles.fillPurple, { width: `${stats.weeklyProgress.steps}%` }]} />
+                <View style={[styles.progressFill, styles.fillPurple, { width: `${getProgressPercent(selectedWeeklyStats.values.steps, selectedWeeklyStats.goals.steps)}%` }]} />
               </View>
-              <Text style={styles.progressPercent}>{stats.weeklyProgress.steps}% da meta</Text>
+              <Text style={styles.progressPercent}>{getProgressPercent(selectedWeeklyStats.values.steps, selectedWeeklyStats.goals.steps)}% da meta</Text>
             </View>
+            )}
           </View>
           <View style={{ height: 40 }} />
         </ScrollView>
@@ -863,7 +903,7 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontSize: 25,
     fontWeight: 'bold',
-    lineHeight: 20,
+    lineHeight: 30,
   },
   metricSummaryLabel: {
     color: '#64748B',
@@ -984,6 +1024,31 @@ const styles = StyleSheet.create({
   },
 
   // ---- Metas Semanais ----
+  weeklyTypeToggle: {
+    flexDirection: 'row',
+    marginHorizontal: 20,
+    marginBottom: 14,
+    backgroundColor: '#000000',
+    borderRadius: 15,
+    padding: 6,
+  },
+  weeklyTypeTab: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  weeklyTypeTabActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  weeklyTypeTabText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  weeklyTypeTabTextActive: {
+    color: '#000000',
+  },
   goalsList: {
     paddingHorizontal: 20,
     marginBottom: 24,
