@@ -19,6 +19,11 @@ import { useFocusEffect } from 'expo-router';
 import { BikeContext } from '../context/BikeContext';
 import { listExerciseRecords } from '../utils/exerciseStorage';
 import {
+  exportBackup,
+  getBackupMetadata,
+  importBackup,
+} from '../utils/backupStorage';
+import {
   DEFAULT_WEEKLY_GOALS,
   WEEKLY_GOALS_KEY,
   normalizeWeeklyGoals,
@@ -142,6 +147,7 @@ export default function ProfileScreen() {
   const [headerHeight, setHeaderHeight] = useState(0);
   const [weeklyGoalsByType, setWeeklyGoalsByType] = useState(DEFAULT_WEEKLY_GOALS);
   const [activeWeeklyType, setActiveWeeklyType] = useState('indoor');
+  const [backupMetadata, setBackupMetadata] = useState(null);
   const { refreshTrigger } = React.useContext(BikeContext);
 
   const loadProfile = useCallback(async () => {
@@ -179,6 +185,9 @@ export default function ProfileScreen() {
         loadProfile();
         loadRecords();
         loadWeeklyGoals();
+        getBackupMetadata().then(setBackupMetadata).catch((error) => {
+          console.error('Error loading backup metadata:', error);
+        });
       }
     }, [loadProfile, loadRecords, loadWeeklyGoals, refreshTrigger])
   );
@@ -361,6 +370,43 @@ export default function ProfileScreen() {
   };
 
   const fullName = profile ? `${profile.firstName} ${profile.lastName}`.trim() : '';
+
+  const handleExportBackup = async () => {
+    try {
+      const metadata = await exportBackup();
+      setBackupMetadata(metadata);
+      Alert.alert('Backup exportado', `${metadata.exerciseCount} exercicios incluidos no arquivo.`);
+    } catch (error) {
+      console.error('Error exporting backup:', error);
+      Alert.alert('Erro', 'Nao foi possivel exportar o backup.');
+    }
+  };
+
+  const handleImportBackup = () => {
+    Alert.alert(
+      'Importar backup',
+      'A importacao vai substituir os dados atuais do app. Deseja continuar?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Importar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const metadata = await importBackup();
+              if (!metadata) return;
+              setBackupMetadata(null);
+              await Promise.all([loadProfile(), loadRecords(), loadWeeklyGoals()]);
+              Alert.alert('Backup importado', `${metadata.exerciseCount} exercicios restaurados.`);
+            } catch (error) {
+              console.error('Error importing backup:', error);
+              Alert.alert('Erro', error.message || 'Nao foi possivel importar o backup.');
+            }
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -598,6 +644,34 @@ export default function ProfileScreen() {
               <Text style={styles.progressPercent}>{getProgressPercent(selectedWeeklyStats.values.steps, selectedWeeklyStats.goals.steps)}% da meta</Text>
             </View>
             )}
+          </View>
+          <View style={styles.backupSection}>
+            <View style={styles.backupHeader}>
+              <View style={styles.backupIconWrap}>
+                <Ionicons name="archive-outline" size={22} color="#BFDBFE" />
+              </View>
+              <View style={styles.backupInfo}>
+                <Text style={styles.backupTitle}>Backup dos dados</Text>
+                <Text style={styles.backupDescription}>
+                  Exporte seus exercicios para restaurar depois, mesmo se os dados do app forem apagados.
+                </Text>
+                {backupMetadata && (
+                  <Text style={styles.backupStatus}>
+                    Ultimo backup: {new Date(backupMetadata.exportedAt).toLocaleDateString('pt-BR')} ({backupMetadata.exerciseCount} exercicios)
+                  </Text>
+                )}
+              </View>
+            </View>
+            <View style={styles.backupActions}>
+              <TouchableOpacity style={styles.backupButton} onPress={handleExportBackup}>
+                <Ionicons name="share-outline" size={18} color="#0F172A" />
+                <Text style={styles.backupButtonText}>Exportar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.backupButtonSecondary} onPress={handleImportBackup}>
+                <Ionicons name="download-outline" size={18} color="#E2E8F0" />
+                <Text style={styles.backupButtonSecondaryText}>Importar</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           <View style={{ height: 40 }} />
         </ScrollView>
@@ -1108,6 +1182,85 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     textAlign: 'center',
+  },
+  backupSection: {
+    marginHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: '#172235',
+    borderWidth: 1,
+    borderColor: '#263852',
+  },
+  backupHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  backupIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#1E3A5F',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  backupInfo: {
+    flex: 1,
+  },
+  backupTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  backupDescription: {
+    color: '#AFC0D4',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  backupStatus: {
+    color: '#7DD3FC',
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 8,
+  },
+  backupActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 16,
+  },
+  backupButton: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+  },
+  backupButtonText: {
+    color: '#0F172A',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  backupButtonSecondary: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#475569',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+  },
+  backupButtonSecondaryText: {
+    color: '#E2E8F0',
+    fontSize: 13,
+    fontWeight: '800',
   },
 
   

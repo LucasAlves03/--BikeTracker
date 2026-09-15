@@ -5,13 +5,14 @@ import {
   View,
   ScrollView,
   Dimensions,
+  Image,
   Modal,
   TouchableOpacity,
   ImageBackground,
   Animated,
   Easing,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ProgressChart } from 'react-native-chart-kit';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -34,6 +35,7 @@ import {
 
 
 const { width } = Dimensions.get('window');
+const PROFILE_STORAGE_KEY = 'userProfile';
 const ACTIVITY_HEADER_IMAGES = {
   indoor: require('../../assets/header_indoor.png'),
   walk: require('../../assets/header_walk.png'),
@@ -82,7 +84,9 @@ const parseStepsValue = normalizeStepsGoal;
 const formatIntegerPtBr = (value) => new Intl.NumberFormat('pt-BR').format(Math.round(value || 0));
 
 export default function HomeScreen() {
+  const router = useRouter();
   const [records, setRecords] = useState([]);
+  const [profile, setProfile] = useState(null);
   const [activeTracker, setActiveTracker] = useState('indoor');
   const [greeting, setGreeting] = useState('Painel');
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -136,6 +140,7 @@ export default function HomeScreen() {
       const refreshHome = async () => {
         await checkWeekReset();
         await loadData();
+        await loadProfile();
       };
 
       refreshHome();
@@ -252,6 +257,17 @@ export default function HomeScreen() {
       console.error('Error loading data:', error);
     }
   };
+
+  const loadProfile = async () => {
+    try {
+      const savedProfile = await AsyncStorage.getItem(PROFILE_STORAGE_KEY);
+      setProfile(savedProfile ? JSON.parse(savedProfile) : null);
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    }
+  };
+
+  const profileInitials = `${profile?.firstName?.trim()?.[0] || ''}${profile?.lastName?.trim()?.[0] || ''}`.toUpperCase() || 'BT';
 
   const areGoalsCompletedForType = (type, stats, goalsByType = weeklyGoalsByType) => {
     const goals = goalsByType[type];
@@ -537,7 +553,21 @@ export default function HomeScreen() {
           <Text style={styles.headerTitle}>{greeting}</Text>
           <Text style={styles.headerSubtitle}>{formatDate(new Date())}</Text>
         </View>
-        <NotificationBell/>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.profileButton}
+            onPress={() => router.push('/(tabs)/profile')}
+            accessibilityRole="button"
+            accessibilityLabel="Abrir perfil"
+          >
+            {profile?.pictureUri ? (
+              <Image source={{ uri: profile.pictureUri }} style={styles.profileImage} />
+            ) : (
+              <Text style={styles.profileInitials}>{profileInitials}</Text>
+            )}
+          </TouchableOpacity>
+          <NotificationBell />
+        </View>
       </View>
 
     <ScrollView
@@ -903,6 +933,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#94A3B8',
     textTransform: 'capitalize',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  profileButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#334155',
+    borderWidth: 1,
+    borderColor: '#212529',
+    overflow: 'hidden',
+  },
+  profileImage: {
+    width: '100%',
+    height: '100%',
+  },
+  profileInitials: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
   },
   glassCard: {
     marginHorizontal: 24,

@@ -42,7 +42,8 @@
       "expo-font",
       "expo-image",
       "expo-status-bar",
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-sharing"
     ],
     "experiments": {
       "reactCompiler": true
