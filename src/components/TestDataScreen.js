@@ -126,7 +126,7 @@ export default function TestDataScreen() {
 
         <Text style={styles.sectionTitle}>Adicionar exercícios aleatórios</Text>
         <Text style={styles.sectionDescription}>
-          Os registros usam valores e datas variados para testar listas, gráficos e estatísticas.
+          Os registros usam valores variados e são distribuídos por meses e dias para testar listas, gráficos e estatísticas.
         </Text>
         <View style={styles.batchGrid}>
           {TEST_BATCHES.map((count) => (

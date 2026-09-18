@@ -9,7 +9,8 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { LineChart } from 'react-native-gifted-charts';
+import { LineChart as GiftedLineChart } from 'react-native-gifted-charts';
+import { LineChart } from 'react-native-chart-kit';
 import { BikeContext } from '../context/BikeContext';
 import { listExerciseRecords } from '../utils/exerciseStorage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -64,6 +65,8 @@ export default function StatisticsScreen() {
   const [selectedMonths, setSelectedMonths] = useState({});
   const [completedWeeks, setCompletedWeeks] = useState([]);
   const [selectedCompletedWeek, setSelectedCompletedWeek] = useState(null);
+  const [selectedMonthlyYear, setSelectedMonthlyYear] = useState(null);
+  const [selectedMonthlyPoint, setSelectedMonthlyPoint] = useState(null);
   const [headerHeight, setHeaderHeight] = useState(0);
   const { refreshTrigger } = useContext(BikeContext);
 
@@ -186,6 +189,52 @@ export default function StatisticsScreen() {
       }, 0),
     };
   }, [records, filterType]);
+
+  const monthlyExerciseYears = useMemo(() => {
+    const years = new Set([new Date().getFullYear()]);
+    records.forEach((record) => {
+      const date = new Date(record.date);
+      if (!Number.isNaN(date.getTime())) years.add(date.getFullYear());
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  }, [records]);
+
+  const activeMonthlyYear = monthlyExerciseYears.includes(selectedMonthlyYear)
+    ? selectedMonthlyYear
+    : monthlyExerciseYears[0];
+
+  const monthlyExerciseChartData = useMemo(() => {
+    const totalsByMonth = Array.from({ length: 12 }, () => ({ indoor: 0, walk: 0 }));
+
+    records.forEach((record) => {
+      const date = new Date(record.date);
+      const type = getRecordType(record);
+      if (date.getFullYear() === activeMonthlyYear && (type === 'indoor' || type === 'walk')) {
+        totalsByMonth[date.getMonth()][type] += 1;
+      }
+    });
+
+    return {
+      labels: Array.from({ length: 12 }, (_, monthIndex) =>
+        new Date(activeMonthlyYear, monthIndex, 1)
+          .toLocaleDateString('pt-BR', { month: 'short' })
+          .replace('.', '')
+      ),
+      datasets: [
+        {
+          data: totalsByMonth.map((month) => month.walk),
+          color: () => ACTIVITY_COLORS.walk,
+          strokeWidth: 3,
+        },
+        {
+          data: totalsByMonth.map((month) => month.indoor),
+          color: () => ACTIVITY_COLORS.indoor,
+          strokeWidth: 3,
+        },
+      ],
+      legend: ['Caminhada', 'Bic. Ergométrica'],
+    };
+  }, [records, activeMonthlyYear]);
 
   const formatWeeklyTrendValue = (value, metric) => {
     const numeric = parseMetricNumber(value);
@@ -573,7 +622,7 @@ export default function StatisticsScreen() {
                 selectedTrendMetric
               )} nos últimos 7 dias
             </Text>
-            <LineChart
+            <GiftedLineChart
               data={weeklyTrendData}
               curved={false}
               thickness={3}
@@ -756,6 +805,99 @@ export default function StatisticsScreen() {
                   </View>
                 );
               })()}
+              <View style={styles.monthlyChartCard}>
+                <View style={styles.monthlyChartHeader}>
+                  <View>
+                    <Text style={styles.monthlyChartEyebrow}>EVOLUÇÃO MENSAL</Text>
+                    <Text style={styles.monthlyChartTitle}>Exercícios adicionados</Text>
+                  </View>
+                  <Text style={styles.monthlyChartUnit}>sessões</Text>
+                </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.monthlyYearTabsRow}
+                >
+                  {monthlyExerciseYears.map((year) => {
+                    const isActive = year === activeMonthlyYear;
+                    return (
+                      <TouchableOpacity
+                        key={year}
+                        style={[styles.monthlyYearTab, isActive && styles.monthlyYearTabActive]}
+                        onPress={() => {
+                          setSelectedMonthlyYear(year);
+                          setSelectedMonthlyPoint(null);
+                        }}
+                      >
+                        <Text style={[styles.monthlyYearTabText, isActive && styles.monthlyYearTabTextActive]}>
+                          {year}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+                {selectedMonthlyPoint && (
+                  <View style={styles.monthlyChartTooltip}>
+                    <Text style={styles.monthlyChartTooltipTitle}>
+                      {selectedMonthlyPoint.label}
+                    </Text>
+                    <View style={styles.monthlyChartTooltipValues}>
+                      <View style={styles.monthlyChartTooltipValue}>
+                        <View style={[styles.monthlyChartTooltipDot, { backgroundColor: ACTIVITY_COLORS.walk }]} />
+                        <Text style={styles.monthlyChartTooltipText}>
+                          Caminhada: {selectedMonthlyPoint.walk}
+                        </Text>
+                      </View>
+                      <View style={styles.monthlyChartTooltipValue}>
+                        <View style={[styles.monthlyChartTooltipDot, { backgroundColor: ACTIVITY_COLORS.indoor }]} />
+                        <Text style={styles.monthlyChartTooltipText}>
+                          Bicicleta: {selectedMonthlyPoint.indoor}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+                <LineChart
+                  data={monthlyExerciseChartData}
+                  width={SCREEN_WIDTH - 68}
+                  height={230}
+                  fromZero
+                  chartConfig={{
+                    backgroundColor: '#FFFFFF',
+                    backgroundGradientFrom: '#FFFFFF',
+                    backgroundGradientTo: '#FFFFFF',
+                    decimalPlaces: 0,
+                    color: (opacity = 1) => `rgba(15, 23, 42, ${opacity})`,
+                    labelColor: () => '#64748B',
+                    propsForDots: {
+                      r: '4',
+                      strokeWidth: '2',
+                      stroke: '#FFFFFF',
+                    },
+                    propsForBackgroundLines: {
+                      stroke: '#E2E8F0',
+                    },
+                  }}
+                  style={styles.monthlyChart}
+                  yAxisInterval={1}
+                  withInnerLines
+                  withOuterLines={false}
+                  withVerticalLines={false}
+                  formatYLabel={(value) => `${Math.round(Number(value))}`}
+                  onDataPointClick={({ index }) => {
+                    const selectedMonth = new Date(activeMonthlyYear, index, 1);
+
+                    setSelectedMonthlyPoint({
+                      label: selectedMonth.toLocaleDateString('pt-BR', {
+                        month: 'long',
+                        year: 'numeric',
+                      }),
+                      walk: monthlyExerciseChartData.datasets[0].data[index],
+                      indoor: monthlyExerciseChartData.datasets[1].data[index],
+                    });
+                  }}
+                />
+              </View>
             </View>
 
             {completedWeekSummaries.length > 0 && (
@@ -1133,6 +1275,106 @@ const styles = StyleSheet.create({
   },
   frequencyTabTextActive: {
     color: '#000000',
+  },
+  monthlyChartCard: {
+    marginTop: 14,
+    marginHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 10,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    overflow: 'hidden',
+  },
+  monthlyChartHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 4,
+  },
+  monthlyChartEyebrow: {
+    color: '#38BDF8',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    marginBottom: 4,
+  },
+  monthlyChartTitle: {
+    color: '#0F172A',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  monthlyChartUnit: {
+    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  monthlyYearTabsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+  },
+  monthlyYearTab: {
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: '#F1F5F9',
+  },
+  monthlyYearTabActive: {
+    backgroundColor: '#0F172A',
+  },
+  monthlyYearTabText: {
+    color: '#475569',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  monthlyYearTabTextActive: {
+    color: '#FFFFFF',
+  },
+  monthlyChartTooltip: {
+    marginHorizontal: 16,
+    marginBottom: 4,
+    paddingVertical: 9,
+    paddingHorizontal: 11,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  monthlyChartTooltipTitle: {
+    color: '#0F172A',
+    fontSize: 13,
+    fontWeight: '800',
+    textTransform: 'capitalize',
+    marginBottom: 6,
+  },
+  monthlyChartTooltipValues: {
+    flexDirection: 'row',
+    gap: 14,
+    flexWrap: 'wrap',
+  },
+  monthlyChartTooltipValue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  monthlyChartTooltipDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  monthlyChartTooltipText: {
+    color: '#475569',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  monthlyChart: {
+    marginLeft: -8,
+    marginRight: -8,
   },
   completedWeekRow: {
     paddingHorizontal: 24,

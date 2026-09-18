@@ -442,7 +442,7 @@ export default function HomeScreen() {
     ? `${getTrackerLabel(latestRecord.activityType)} · ${latestRecord.displayDate || formatDate(latestRecord.date)}`
     : 'Nenhuma atividade registrada ainda';
   const latestRecordSummary = latestRecord
-    ? `${latestRecord.time || 0} min · ${latestRecord.distance || 0} km`
+    ?   `${latestRecord.time || 0} min · ${latestRecord.distance || 0} km`
     : 'Registre um exercício para acompanhar sua evolução.';
   const currentStreak = getStreak();
   const insight = goalsCompletedByType[activeTracker]
@@ -930,7 +930,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   headerSubtitle: {
-    fontSize: 16,
+    fontSize: 16, 
     color: '#94A3B8',
     textTransform: 'capitalize',
   },

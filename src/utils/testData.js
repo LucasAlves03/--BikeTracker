@@ -44,6 +44,22 @@ const getMondayOfCurrentWeek = () => {
   return monday;
 };
 
+const createRandomHistoryDate = (monthOffset = Math.floor(Math.random() * 12)) => {
+  const today = new Date();
+  const monthStart = new Date(today.getFullYear(), today.getMonth() - monthOffset, 1);
+  const daysInMonth = new Date(
+    monthStart.getFullYear(),
+    monthStart.getMonth() + 1,
+    0
+  ).getDate();
+  const latestDay = monthOffset === 0 ? today.getDate() : daysInMonth;
+  const date = new Date(monthStart);
+
+  date.setDate(1 + Math.floor(Math.random() * latestDay));
+  date.setHours(8 + Math.floor(Math.random() * 12), Math.floor(Math.random() * 60), 0, 0);
+  return date;
+};
+
 const createRecord = ({ date, activityType, index, values = {} }) => {
   const distance = values.distance ?? round(
     activityType === 'walk' ? randomBetween(1.5, 8) : randomBetween(4, 18),
@@ -89,9 +105,7 @@ export const countGeneratedRecords = async () => {
 
 export const addRandomRecords = async (count) => {
   const records = Array.from({ length: count }, (_, index) => {
-    const date = new Date();
-    date.setDate(1 + Math.floor(Math.random() * date.getDate()));
-    date.setHours(8 + Math.floor(Math.random() * 12), Math.floor(Math.random() * 60), 0, 0);
+    const date = createRandomHistoryDate(index % 12);
     const activityType = Math.random() > 0.5 ? 'walk' : 'indoor';
     return createRecord({ date, activityType, index });
   });
