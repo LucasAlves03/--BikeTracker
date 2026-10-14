@@ -172,12 +172,16 @@ export default function HistoryScreen() {
     const weeklyTotals = {
       distance: weeklyRecords.reduce((sum, record) => sum + getMetricNumericValue(record, 'distance'), 0),
       time: weeklyRecords.reduce((sum, record) => sum + getMetricNumericValue(record, 'time'), 0),
+      runningTime: weeklyRecords.reduce((sum, record) => sum + getMetricNumericValue(record, 'runningTime'), 0),
       calories: weeklyRecords.reduce((sum, record) => sum + getMetricNumericValue(record, 'calories'), 0),
       steps: weeklyRecords.reduce((sum, record) => sum + getMetricNumericValue(record, 'steps'), 0),
     };
     const progressMetrics = [
       { key: 'distance', label: 'Distância', unit: 'km', color: '#668DC4' },
       { key: 'time', label: 'Tempo', unit: 'min', color: '#62A77C' },
+      ...(activityType === 'walk' && getMetricNumericValue(goals, 'runningTime') > 0
+        ? [{ key: 'runningTime', label: 'Tempo de corrida', unit: 'min', color: '#22D3EE' }]
+        : []),
       { key: 'calories', label: 'Calorias', unit: 'kcal', color: '#C95C5C' },
       ...(activityType === 'walk' && goals.steps > 0
         ? [{ key: 'steps', label: 'Passos', unit: 'steps', color: '#624E8C' }]
@@ -388,6 +392,12 @@ export default function HistoryScreen() {
                                 <Text style={styles.activityMetricLabel}>passos</Text>
                               </View>
                             ) : null}
+                            {getActivityType(record) === 'walk' && record.runningTime !== undefined && record.runningTime !== '' ? (
+                              <View style={styles.activityMetric}>
+                                <Text style={styles.activityMetricValue}>{formatMetricDisplayValue(getMetricNumericValue(record, 'runningTime'), 'min')}</Text>
+                                <Text style={styles.activityMetricLabel}>corrida</Text>
+                              </View>
+                            ) : null}
                           </View>
                         </TouchableOpacity>
                       </View>
@@ -462,6 +472,19 @@ export default function HistoryScreen() {
                         <Text style={styles.largeMetricValue}>{formatMetricDisplayValue(getMetricNumericValue(selectedRecord, 'calories'), 'kcal')}</Text>
                       </View>
                     </View>
+
+                    {selectedReport.activityType === 'walk' &&
+                      selectedRecord.runningTime !== undefined &&
+                      selectedRecord.runningTime !== '' && (
+                        <View style={styles.largeMetricRow}>
+                          <View style={styles.largeMetric}>
+                            <Text style={styles.largeMetricLabel}>TEMPO DE CORRIDA</Text>
+                            <Text style={styles.largeMetricValue}>
+                              {formatMetricDisplayValue(getMetricNumericValue(selectedRecord, 'runningTime'), 'min')}
+                            </Text>
+                          </View>
+                        </View>
+                      )}
 
                     <Text style={styles.reportSectionTitle}>Meta semanal</Text>
                     <View style={styles.progressList}>

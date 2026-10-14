@@ -31,6 +31,7 @@ export default function AddExerciseScreen() {
   const [calories, setCalories] = useState('');
   const [distance, setDistance] = useState('');
   const [steps, setSteps] = useState('');
+  const [runningTime, setRunningTime] = useState('');
   const [headerHeight, setHeaderHeight] = useState(0);
   const { triggerRefresh, triggerNotificationRefresh } = useContext(BikeContext);
 
@@ -98,6 +99,7 @@ export default function AddExerciseScreen() {
       calories,
       distance,
       steps: activityType === 'walk' ? steps : undefined,
+      runningTime: activityType === 'walk' && runningTime ? runningTime : undefined,
     };
 
     try {
@@ -114,6 +116,7 @@ export default function AddExerciseScreen() {
       setDistance('');
       setCalories('');
       setSteps('');
+      setRunningTime('');
 
       triggerRefresh();
       
@@ -232,6 +235,20 @@ export default function AddExerciseScreen() {
                 onChangeText={setSteps}
                 keyboardType="numeric"
                 placeholder="Digite os passos"
+                placeholderTextColor="#9CA3AF"
+              />
+            </View>
+          )}
+
+          {activityType === 'walk' && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Tempo de corrida (minutos)</Text>
+              <TextInput
+                style={styles.input}
+                value={runningTime}
+                onChangeText={setRunningTime}
+                keyboardType="numeric"
+                placeholder="Digite o tempo de corrida"
                 placeholderTextColor="#9CA3AF"
               />
             </View>

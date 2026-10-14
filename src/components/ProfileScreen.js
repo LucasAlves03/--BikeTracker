@@ -211,6 +211,7 @@ export default function ProfileScreen() {
       return Number.isFinite(time) && time >= weekStart.getTime() && time < weekEnd.getTime();
     });
     const weeklyTime = weeklyRecords.reduce((sum, record) => sum + parseMetricNumber(record.time), 0);
+    const weeklyRunningTime = weeklyRecords.reduce((sum, record) => sum + parseMetricNumber(record.runningTime), 0);
     const weeklyDistance = weeklyRecords.reduce((sum, record) => sum + parseMetricNumber(record.distance), 0);
     const weeklyCalories = weeklyRecords.reduce((sum, record) => sum + parseMetricNumber(record.calories), 0);
     const weeklySteps = weeklyRecords.reduce((sum, record) => sum + estimateSteps(record), 0);
@@ -220,6 +221,7 @@ export default function ProfileScreen() {
       statsByType[type] = {
         values: {
           time: typeRecords.reduce((sum, record) => sum + parseMetricNumber(record.time), 0),
+          runningTime: typeRecords.reduce((sum, record) => sum + parseMetricNumber(record.runningTime), 0),
           distance: typeRecords.reduce((sum, record) => sum + parseMetricNumber(record.distance), 0),
           calories: typeRecords.reduce((sum, record) => sum + parseMetricNumber(record.calories), 0),
           steps: typeRecords.reduce((sum, record) => sum + estimateSteps(record), 0),
@@ -249,6 +251,7 @@ export default function ProfileScreen() {
     };
     const weeklyGoals = {
       time: parseMetricNumber(weeklyGoalsByType.indoor.time) + parseMetricNumber(weeklyGoalsByType.walk.time),
+      runningTime: parseMetricNumber(weeklyGoalsByType.walk.runningTime),
       distance: parseMetricNumber(weeklyGoalsByType.indoor.distance) + parseMetricNumber(weeklyGoalsByType.walk.distance),
       calories: parseMetricNumber(weeklyGoalsByType.indoor.calories) + parseMetricNumber(weeklyGoalsByType.walk.calories),
       steps: parseStepsNumber(weeklyGoalsByType.indoor.steps) + parseStepsNumber(weeklyGoalsByType.walk.steps),
@@ -263,12 +266,14 @@ export default function ProfileScreen() {
       bestPerformance,
       weeklyProgress: {
         time: getProgressPercent(weeklyTime, weeklyGoals.time),
+        runningTime: getProgressPercent(weeklyRunningTime, weeklyGoals.runningTime),
         distance: getProgressPercent(weeklyDistance, weeklyGoals.distance),
         calories: getProgressPercent(weeklyCalories, weeklyGoals.calories),
         steps: getProgressPercent(weeklySteps, weeklyGoals.steps),
       },
       weeklyValues: {
         time: weeklyTime,
+        runningTime: weeklyRunningTime,
         distance: weeklyDistance,
         calories: weeklyCalories,
         steps: weeklySteps,
@@ -643,6 +648,29 @@ export default function ProfileScreen() {
               </View>
               <Text style={styles.progressPercent}>{getProgressPercent(selectedWeeklyStats.values.steps, selectedWeeklyStats.goals.steps)}% da meta</Text>
             </View>
+            )}
+
+            {activeWeeklyType === 'walk' && (
+              <View style={styles.goalRow}>
+                <View style={styles.goalHeader}>
+                  <Text style={styles.goalLabel}>Tempo de corrida</Text>
+                  <Text style={styles.goalValue}>
+                    {selectedWeeklyStats.goals.runningTime > 0
+                      ? `${formatProgressValue(selectedWeeklyStats.values.runningTime, 'time')} / ${formatProgressValue(selectedWeeklyStats.goals.runningTime, 'time')} min`
+                      : `${formatProgressValue(selectedWeeklyStats.values.runningTime, 'time')} min acumulados`}
+                  </Text>
+                </View>
+                {selectedWeeklyStats.goals.runningTime > 0 ? (
+                  <>
+                    <View style={styles.progressTrack}>
+                      <View style={[styles.progressFill, styles.fillBlue, { width: `${getProgressPercent(selectedWeeklyStats.values.runningTime, selectedWeeklyStats.goals.runningTime)}%` }]} />
+                    </View>
+                    <Text style={styles.progressPercent}>{getProgressPercent(selectedWeeklyStats.values.runningTime, selectedWeeklyStats.goals.runningTime)}% da meta</Text>
+                  </>
+                ) : (
+                  <Text style={styles.progressPercent}>Defina uma meta semanal na tela Início</Text>
+                )}
+              </View>
             )}
           </View>
           <View style={styles.backupSection}>

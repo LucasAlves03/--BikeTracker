@@ -35,6 +35,7 @@ const hexToRgba = (hex, alpha) => {
 const WEEKLY_TREND_METRICS = [
   { key: 'distance', label: 'Distância', unit: 'km', color: '#668DC4' },
   { key: 'time', label: 'Tempo', unit: 'min', color: '#62A77C' },
+  { key: 'runningTime', label: 'Corrida', unit: 'min', color: '#22D3EE' },
   { key: 'calories', label: 'Calorias', unit: 'kcal', color: '#C95C5C' },
   { key: 'speed', label: 'Velocidade', unit: 'km/h', color: '#624E8C' },
 ];
@@ -180,6 +181,7 @@ export default function StatisticsScreen() {
 
     return {
       sessions: sourceRecords.length,
+      runningTime: sourceRecords.reduce((sum, record) => sum + parseMetricNumber(record.runningTime), 0),
       calories: sourceRecords.reduce((sum, record) => sum + parseMetricNumber(record.calories), 0),
       steps: sourceRecords.reduce((sum, record) => {
         const value = typeof record.steps === 'number'
@@ -365,10 +367,11 @@ export default function StatisticsScreen() {
         (totals, record) => ({
           exercises: totals.exercises + 1,
           time: totals.time + parseMetricNumber(record.time),
+          runningTime: totals.runningTime + parseMetricNumber(record.runningTime),
           calories: totals.calories + parseMetricNumber(record.calories),
           distance: totals.distance + parseMetricNumber(record.distance),
         }),
-        { exercises: 0, time: 0, calories: 0, distance: 0 }
+        { exercises: 0, time: 0, runningTime: 0, calories: 0, distance: 0 }
       ),
     [records]
   );
@@ -420,6 +423,7 @@ export default function StatisticsScreen() {
         weekEnd: completion.weekEnd,
         sessions: 0,
         time: 0,
+        runningTime: 0,
         distance: 0,
         calories: 0,
         steps: 0,
@@ -427,6 +431,7 @@ export default function StatisticsScreen() {
       current.weekEnd = completion.weekEnd;
       current.sessions += Number(completion.stats?.sessionsCount) || 0;
       current.time += parseMetricNumber(completion.stats?.totalTime);
+      current.runningTime += parseMetricNumber(completion.stats?.totalRunningTime);
       current.distance += parseMetricNumber(completion.stats?.totalDistance);
       current.calories += parseMetricNumber(completion.stats?.totalCalories);
       current.steps += Number(completion.stats?.totalSteps) || 0;
@@ -459,6 +464,14 @@ export default function StatisticsScreen() {
       icon: 'time-outline',
       color: '#62A77C',
       progress: Math.min(lifetimeStats.time / 1200, 1),
+    },
+    {
+      key: 'runningTime',
+      label: 'Tempo de corrida',
+      value: formatTotalMinutes(lifetimeStats.runningTime),
+      icon: 'walk-outline',
+      color: '#0E7490',
+      progress: Math.min(lifetimeStats.runningTime / 600, 1),
     },
     {
       key: 'calories',
@@ -521,6 +534,15 @@ export default function StatisticsScreen() {
                     {formatTotalMinutes(selectedCompletedWeek.time)}
                   </Text>
                   <Text style={styles.completedWeekMetricLabel}>tempo ativo</Text>
+                </View>
+                <View style={[styles.completedWeekMetric, styles.completedWeekMetricBlue]}>
+                  <Ionicons name="walk-outline" size={30} color="#FFFFFF" />
+                  <View style={styles.completedWeekMetricCopy}>
+                    <Text style={styles.completedWeekMetricValue}>
+                      {formatTotalMinutes(selectedCompletedWeek.runningTime)}
+                    </Text>
+                    <Text style={styles.completedWeekMetricLabel}>tempo de corrida</Text>
+                  </View>
                 </View>
               </View>
               <View style={[styles.completedWeekMetric, styles.completedWeekMetricBlue]}>
@@ -674,6 +696,10 @@ export default function StatisticsScreen() {
               <Ionicons name="fitness-outline" size={31} color="#FFFFFF" />
               <Text style={styles.monthlySummaryValue}>{formatCompactNumber(monthlySummary.sessions)}</Text>
               <Text style={styles.monthlySummaryLabel}>Sessões no mês</Text>
+              <Text style={styles.monthlySummaryValueSmall}>
+                {formatCompactNumber(monthlySummary.runningTime)} min
+              </Text>
+              <Text style={styles.monthlySummaryLabel}>Tempo de corrida</Text>
             </View>
             <View style={styles.monthlySummarySide}>
               <View style={[styles.monthlySummaryCard, styles.monthlyCaloriesCard]}>
@@ -1862,5 +1888,3 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 });
-
-

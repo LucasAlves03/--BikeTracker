@@ -97,6 +97,7 @@ export default function HomeScreen() {
       totalTime: 0,
       totalCalories: 0,
       totalSteps: 0,
+      totalRunningTime: 0,
       averageSpeed: 0,
       sessionsCount: 0,
     },
@@ -105,6 +106,7 @@ export default function HomeScreen() {
       totalTime: 0,
       totalCalories: 0,
       totalSteps: 0,
+      totalRunningTime: 0,
       averageSpeed: 0,
       sessionsCount: 0,
     },
@@ -275,6 +277,8 @@ export default function HomeScreen() {
       parseDecimalValue(stats.totalDistance) >= parseDecimalValue(goals.distance) &&
       parseDecimalValue(stats.totalTime) >= parseDecimalValue(goals.time) &&
       parseDecimalValue(stats.totalCalories) >= parseDecimalValue(goals.calories) &&
+      (type !== 'walk' || parseDecimalValue(goals.runningTime) <= 0 ||
+        parseDecimalValue(stats.totalRunningTime) >= parseDecimalValue(goals.runningTime)) &&
       (type !== 'walk' || parseStepsValue(stats.totalSteps) >= parseStepsValue(goals.steps || 0))
     );
   };
@@ -350,6 +354,7 @@ export default function HomeScreen() {
       const totalTime = typeRecords.reduce((sum, r) => sum + parseDecimalValue(r.time), 0);
       const totalCalories = typeRecords.reduce((sum, r) => sum + parseDecimalValue(r.calories), 0);
       const totalSteps = typeRecords.reduce((sum, r) => sum + parseStepsValue(r.steps), 0);
+      const totalRunningTime = typeRecords.reduce((sum, r) => sum + parseDecimalValue(r.runningTime), 0);
       const totalSpeed = typeRecords.reduce((sum, r) => sum + parseDecimalValue(r.speed), 0);
 
       return {
@@ -357,6 +362,7 @@ export default function HomeScreen() {
         totalTime: Math.round(totalTime),
         totalCalories: Math.round(totalCalories),
         totalSteps: Math.round(totalSteps),
+        totalRunningTime: Math.round(totalRunningTime),
         averageSpeed: typeRecords.length > 0 ? (totalSpeed / typeRecords.length).toFixed(1) : 0,
         sessionsCount: typeRecords.length,
       };
@@ -442,7 +448,11 @@ export default function HomeScreen() {
     ? `${getTrackerLabel(latestRecord.activityType)} · ${latestRecord.displayDate || formatDate(latestRecord.date)}`
     : 'Nenhuma atividade registrada ainda';
   const latestRecordSummary = latestRecord
-    ?   `${latestRecord.time || 0} min · ${latestRecord.distance || 0} km`
+    ? `${latestRecord.time || 0} min · ${latestRecord.distance || 0} km${
+      latestRecord.activityType === 'walk' && latestRecord.runningTime
+        ? ` · Corrida ${latestRecord.runningTime} min`
+        : ''
+    }`
     : 'Registre um exercício para acompanhar sua evolução.';
   const currentStreak = getStreak();
   const insight = goalsCompletedByType[activeTracker]
@@ -824,6 +834,41 @@ export default function HomeScreen() {
                         />
                       </View>
                     </View>
+                  </View>
+                )}
+
+                {activeTracker === 'walk' && (
+                  <View style={styles.legendRow}>
+                    <View style={styles.legendItemHeader}>
+                      <Text style={styles.legendLabel}>Tempo de corrida</Text>
+                      {parseDecimalValue(activeWeeklyGoals.runningTime) > 0 && (
+                        <Text style={styles.legendPercent}>
+                          {getProgressPercentage(activeWeeklyStats.totalRunningTime, activeWeeklyGoals.runningTime)}%
+                        </Text>
+                      )}
+                    </View>
+                    <Text style={styles.legendValue}>
+                      {parseDecimalValue(activeWeeklyGoals.runningTime) > 0
+                        ? `${activeWeeklyStats.totalRunningTime}/${activeWeeklyGoals.runningTime} min`
+                        : `${activeWeeklyStats.totalRunningTime} min acumulados`}
+                    </Text>
+                    {parseDecimalValue(activeWeeklyGoals.runningTime) > 0 ? (
+                      <View style={styles.progressBarContainer}>
+                        <View style={[styles.progressBarBackground, { backgroundColor: 'rgba(34, 211, 238, 0.2)' }]}>
+                          <View
+                            style={[
+                              styles.progressBarFill,
+                              {
+                                width: `${Math.min(getProgressPercentage(activeWeeklyStats.totalRunningTime, activeWeeklyGoals.runningTime), 100)}%`,
+                                backgroundColor: '#22D3EE',
+                              },
+                            ]}
+                          />
+                        </View>
+                      </View>
+                    ) : (
+                      <Text style={styles.legendValue}>Defina uma meta semanal em Ajustar</Text>
+                    )}
                   </View>
                 )}
               </View>
@@ -1407,5 +1452,3 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
-
-

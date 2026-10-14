@@ -7,12 +7,14 @@ export const DEFAULT_WEEKLY_GOALS = {
     time: 300,
     calories: 1125,
     steps: 0,
+    runningTime: 0,
   },
   walk: {
     distance: 20,
     time: 240,
     calories: 800,
     steps: 45000,
+    runningTime: 0,
   },
 };
 
@@ -28,11 +30,15 @@ export const normalizeWeeklyGoals = (savedGoals) => ({
     ...DEFAULT_WEEKLY_GOALS.indoor,
     ...(savedGoals?.indoor || {}),
     steps: 0,
+    runningTime: 0,
   },
   walk: {
     ...DEFAULT_WEEKLY_GOALS.walk,
     ...(savedGoals?.walk || {}),
     steps: normalizeStepsGoal(savedGoals?.walk?.steps ?? DEFAULT_WEEKLY_GOALS.walk.steps),
+    runningTime: Number.isFinite(Number(savedGoals?.walk?.runningTime))
+      ? Math.max(0, Number(savedGoals.walk.runningTime))
+      : DEFAULT_WEEKLY_GOALS.walk.runningTime,
   },
 });
 

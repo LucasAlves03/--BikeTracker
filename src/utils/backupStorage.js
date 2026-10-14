@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import { File as ExpoFile } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 const BACKUP_FORMAT = 'biketracker-backup';
@@ -82,17 +82,13 @@ export const exportBackup = async () => {
 };
 
 export const importBackup = async () => {
-  const result = await DocumentPicker.getDocumentAsync({
-    type: 'application/json',
-    copyToCacheDirectory: true,
-    multiple: false,
+  const result = await ExpoFile.pickFileAsync({
+    mimeTypes: '*/*',
   });
 
-  if (result.canceled || !result.assets?.[0]?.uri) return null;
+  if (result.canceled || !result.result) return null;
 
-  const contents = await FileSystem.readAsStringAsync(result.assets[0].uri, {
-    encoding: FileSystem.EncodingType.UTF8,
-  });
+  const contents = await result.result.text();
   let backup;
   try {
     backup = JSON.parse(contents);

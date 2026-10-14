@@ -22,6 +22,7 @@ const METRICS_BY_TYPE = {
     { key: 'time', label: 'Tempo (min)', unit: 'min' },
     { key: 'calories', label: 'Calorias', unit: 'kcal' },
     { key: 'steps', label: 'Passos', unit: 'steps' },
+    { key: 'runningTime', label: 'Tempo de corrida (min)', unit: 'min' },
   ],
 };
 
@@ -76,12 +77,14 @@ export default function WeeklyGoalsSetupModal({
         time: normalizeGoalNumber(draftGoals.indoor?.time),
         calories: normalizeGoalNumber(draftGoals.indoor?.calories),
         steps: 0,
+        runningTime: 0,
       },
       walk: {
         distance: normalizeGoalNumber(draftGoals.walk?.distance),
         time: normalizeGoalNumber(draftGoals.walk?.time),
         calories: normalizeGoalNumber(draftGoals.walk?.calories),
         steps: normalizeStepsNumber(draftGoals.walk?.steps),
+        runningTime: normalizeGoalNumber(draftGoals.walk?.runningTime),
       },
     };
 
