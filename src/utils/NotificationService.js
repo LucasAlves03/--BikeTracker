@@ -2,11 +2,28 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 let notificationUpdateCallback = null;
 
+const WORKOUT_NOTIFICATION_TITLES = [
+  'Treino feito',
+  'Na conta',
+  'Ritmo em dia',
+  'Sequência rolando',
+  'Mais um dia',
+  'Virou rotina',
+  'Sem alarde, só treino',
+];
+
 export const setNotificationUpdateCallback = (callback) => {
   notificationUpdateCallback = callback;
 };
 
 export const NotificationService = {
+  getWorkoutNotificationTitle(streakDays, workoutCount) {
+    if (streakDays === 7) return WORKOUT_NOTIFICATION_TITLES[3];
+    if (streakDays === 30) return WORKOUT_NOTIFICATION_TITLES[5];
+
+    return WORKOUT_NOTIFICATION_TITLES[(workoutCount - 1) % WORKOUT_NOTIFICATION_TITLES.length];
+  },
+
   async addNotification(type, title, body) {
     try {
       const notification = {
@@ -38,10 +55,10 @@ export const NotificationService = {
     }
   },
 
-  async addWorkoutNotification(stats) {
+  async addWorkoutNotification(stats, title) {
     return await this.addNotification(
       'workout',
-      'Treino Concluído!',
+      title,
       `${stats.time} min • ${stats.distance} km • ${stats.calories} kcal`
     );
   },  async addGoalCompletedNotification() {

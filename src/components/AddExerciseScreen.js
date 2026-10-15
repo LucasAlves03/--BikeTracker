@@ -13,7 +13,7 @@ import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { BikeContext } from '../context/BikeContext';
 import { NotificationService } from '../utils/NotificationService';
-import { saveExerciseRecord } from '../utils/exerciseStorage';
+import { getExerciseStreak, saveExerciseRecord } from '../utils/exerciseStorage';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -58,11 +58,11 @@ export default function AddExerciseScreen() {
     }
   };
 
-  const sendCongratulationsNotification = async (sessionData) => {
+  const sendCongratulationsNotification = async (sessionData, title) => {
     try {
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: 'Mandou bem!',
+          title,
           body: `Você completou ${sessionData.time} minutos hoje! Distância: ${sessionData.distance} km, Calorias: ${sessionData.calories}`,
           sound: true,
         },
@@ -103,13 +103,21 @@ export default function AddExerciseScreen() {
     };
 
     try {
-      await saveExerciseRecord(newRecord);
+      const savedRecords = await saveExerciseRecord(newRecord);
+      const streakDays = getExerciseStreak(savedRecords, now);
+      const notificationTitle = NotificationService.getWorkoutNotificationTitle(
+        streakDays,
+        savedRecords.length
+      );
 
-      await NotificationService.addWorkoutNotification({
-        time,
-        distance,
-        calories,
-      });
+      await NotificationService.addWorkoutNotification(
+        {
+          time,
+          distance,
+          calories,
+        },
+        notificationTitle
+      );
 
       setTime('');
       setSpeed('');
@@ -126,7 +134,7 @@ export default function AddExerciseScreen() {
         {
           text: 'OK',
           onPress: () => {
-            sendCongratulationsNotification(newRecord);
+            sendCongratulationsNotification(newRecord, notificationTitle);
             router.navigate('/(tabs)');
           },
         }

@@ -26,6 +26,8 @@ import {
 import {
   DEFAULT_WEEKLY_GOALS,
   WEEKLY_GOALS_KEY,
+  getMondayOfWeek,
+  getNextMondayOfWeek,
   normalizeWeeklyGoals,
 } from '../utils/weeklyGoals';
 
@@ -198,14 +200,8 @@ export default function ProfileScreen() {
     const totalCalories = records.reduce((sum, record) => sum + parseMetricNumber(record.calories), 0);
     const totalSteps = records.reduce((sum, record) => sum + estimateSteps(record), 0);
 
-    const now = new Date();
-    const day = now.getDay();
-    const daysFromMonday = day === 0 ? 6 : day - 1;
-    const weekStart = new Date(now);
-    weekStart.setDate(now.getDate() - daysFromMonday);
-    weekStart.setHours(0, 0, 0, 0);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 7);
+    const weekStart = getMondayOfWeek();
+    const weekEnd = getNextMondayOfWeek();
     const weeklyRecords = records.filter((record) => {
       const time = new Date(record.date).getTime();
       return Number.isFinite(time) && time >= weekStart.getTime() && time < weekEnd.getTime();

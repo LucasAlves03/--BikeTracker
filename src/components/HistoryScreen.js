@@ -15,7 +15,13 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { BikeContext } from '../context/BikeContext';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { deleteExerciseRecord, listExerciseRecords } from '../utils/exerciseStorage';
-import { DEFAULT_WEEKLY_GOALS, WEEKLY_GOALS_KEY, normalizeWeeklyGoals } from '../utils/weeklyGoals';
+import {
+  DEFAULT_WEEKLY_GOALS,
+  WEEKLY_GOALS_KEY,
+  getMondayOfWeek,
+  getNextMondayOfWeek,
+  normalizeWeeklyGoals,
+} from '../utils/weeklyGoals';
 
 const TOP_SAFE_OFFSET = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 44;
 
@@ -151,14 +157,8 @@ export default function HistoryScreen() {
 
     const activityType = getActivityType(selectedRecord);
     const goals = weeklyGoalsByType[activityType] || DEFAULT_WEEKLY_GOALS[activityType];
-    const now = new Date();
-    const day = now.getDay();
-    const daysFromMonday = day === 0 ? 6 : day - 1;
-    const weekStart = new Date(now);
-    weekStart.setDate(now.getDate() - daysFromMonday);
-    weekStart.setHours(0, 0, 0, 0);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 7);
+    const weekStart = getMondayOfWeek();
+    const weekEnd = getNextMondayOfWeek();
 
     const weeklyRecords = records.filter((record) => {
       const recordDate = new Date(record.date).getTime();

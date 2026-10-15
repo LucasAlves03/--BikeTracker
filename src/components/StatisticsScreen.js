@@ -65,6 +65,7 @@ export default function StatisticsScreen() {
   const [frequencyType, setFrequencyType] = useState('indoor');
   const [selectedMonths, setSelectedMonths] = useState({});
   const [completedWeeks, setCompletedWeeks] = useState([]);
+  const [showCompletedWeeks, setShowCompletedWeeks] = useState(false);
   const [selectedCompletedWeek, setSelectedCompletedWeek] = useState(null);
   const [selectedMonthlyYear, setSelectedMonthlyYear] = useState(null);
   const [selectedMonthlyPoint, setSelectedMonthlyPoint] = useState(null);
@@ -445,7 +446,9 @@ export default function StatisticsScreen() {
       day: 'numeric',
       month: 'short',
     }).replace('.', '');
-    return `${formatDate(weekStart)} - ${formatDate(weekEnd)}`;
+    const lastDay = new Date(weekEnd);
+    lastDay.setDate(lastDay.getDate() - 1);
+    return `${formatDate(weekStart)} - ${formatDate(lastDay)}`;
   };
 
   const yourStatsCards = [
@@ -493,47 +496,69 @@ export default function StatisticsScreen() {
   return (
     <View style={styles.container}>
       <Modal
-        visible={Boolean(selectedCompletedWeek)}
+        visible={showCompletedWeeks}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setSelectedCompletedWeek(null)}
+        onRequestClose={() => {
+          if (selectedCompletedWeek) {
+            setSelectedCompletedWeek(null);
+          } else {
+            setShowCompletedWeeks(false);
+          }
+        }}
       >
         <View style={styles.completedWeekModal}>
           <View style={styles.completedWeekModalHeader}>
-            <View>
-              <Text style={styles.completedWeekModalEyebrow}>META SEMANAL CONCLUÍDA</Text>
-              <Text style={styles.completedWeekModalTitle}>
-                {selectedCompletedWeek && formatCompletedWeekRange(
-                  selectedCompletedWeek.weekStart,
-                  selectedCompletedWeek.weekEnd
-                )}
-              </Text>
+            <View style={styles.completedWeekModalHeading}>
+              {selectedCompletedWeek && (
+                <TouchableOpacity
+                  style={styles.completedWeekBackButton}
+                  onPress={() => setSelectedCompletedWeek(null)}
+                >
+                  <Ionicons name="arrow-back" size={20} color="#E2E8F0" />
+                </TouchableOpacity>
+              )}
+              <View>
+                <Text style={styles.completedWeekModalEyebrow}>
+                  {selectedCompletedWeek ? 'META SEMANAL CONCLUÍDA' : 'HISTÓRICO'}
+                </Text>
+                <Text style={styles.completedWeekModalTitle}>
+                  {selectedCompletedWeek
+                    ? formatCompletedWeekRange(selectedCompletedWeek.weekStart, selectedCompletedWeek.weekEnd)
+                    : 'Semanas concluídas'}
+                </Text>
+              </View>
             </View>
             <TouchableOpacity
               style={styles.completedWeekCloseButton}
-              onPress={() => setSelectedCompletedWeek(null)}
+              onPress={() => {
+                setSelectedCompletedWeek(null);
+                setShowCompletedWeeks(false);
+              }}
             >
               <Ionicons name="close" size={22} color="#E2E8F0" />
             </TouchableOpacity>
           </View>
-          {selectedCompletedWeek && (
-            <View style={styles.completedWeekMetrics}>
-              <View style={[styles.completedWeekMetric, styles.completedWeekMetricPurple]}>
-                <Ionicons name="fitness-outline" size={30} color="#FFFFFF" />
-                <View style={styles.completedWeekMetricCopy}>
-                  <Text style={styles.completedWeekMetricValue}>
-                    {formatCompactNumber(selectedCompletedWeek.sessions)}
-                  </Text>
-                  <Text style={styles.completedWeekMetricLabel}>exercícios</Text>
+          {selectedCompletedWeek ? (
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.completedWeekMetrics}>
+                <View style={[styles.completedWeekMetric, styles.completedWeekMetricPurple]}>
+                  <Ionicons name="fitness-outline" size={30} color="#FFFFFF" />
+                  <View style={styles.completedWeekMetricCopy}>
+                    <Text style={styles.completedWeekMetricValue}>
+                      {formatCompactNumber(selectedCompletedWeek.sessions)}
+                    </Text>
+                    <Text style={styles.completedWeekMetricLabel}>exercícios</Text>
+                  </View>
                 </View>
-              </View>
-              <View style={[styles.completedWeekMetric, styles.completedWeekMetricGreen]}>
-                <Ionicons name="time-outline" size={30} color="#FFFFFF" />
-                <View style={styles.completedWeekMetricCopy}>
-                  <Text style={styles.completedWeekMetricValue}>
-                    {formatTotalMinutes(selectedCompletedWeek.time)}
-                  </Text>
-                  <Text style={styles.completedWeekMetricLabel}>tempo ativo</Text>
+                <View style={[styles.completedWeekMetric, styles.completedWeekMetricGreen]}>
+                  <Ionicons name="time-outline" size={30} color="#FFFFFF" />
+                  <View style={styles.completedWeekMetricCopy}>
+                    <Text style={styles.completedWeekMetricValue}>
+                      {formatTotalMinutes(selectedCompletedWeek.time)}
+                    </Text>
+                    <Text style={styles.completedWeekMetricLabel}>tempo ativo</Text>
+                  </View>
                 </View>
                 <View style={[styles.completedWeekMetric, styles.completedWeekMetricBlue]}>
                   <Ionicons name="walk-outline" size={30} color="#FFFFFF" />
@@ -544,24 +569,50 @@ export default function StatisticsScreen() {
                     <Text style={styles.completedWeekMetricLabel}>tempo de corrida</Text>
                   </View>
                 </View>
-              </View>
-              <View style={[styles.completedWeekMetric, styles.completedWeekMetricBlue]}>
-                <Ionicons name="map-outline" size={30} color="#FFFFFF" />
-                <View style={styles.completedWeekMetricCopy}>
-                  <Text style={styles.completedWeekMetricValue}>{formatTotalDistance(selectedCompletedWeek.distance)}</Text>
-                  <Text style={styles.completedWeekMetricLabel}>distância</Text>
+                <View style={[styles.completedWeekMetric, styles.completedWeekMetricBlue]}>
+                  <Ionicons name="map-outline" size={30} color="#FFFFFF" />
+                  <View style={styles.completedWeekMetricCopy}>
+                    <Text style={styles.completedWeekMetricValue}>{formatTotalDistance(selectedCompletedWeek.distance)}</Text>
+                    <Text style={styles.completedWeekMetricLabel}>distância</Text>
+                  </View>
+                </View>
+                <View style={[styles.completedWeekMetric, styles.completedWeekMetricRed]}>
+                  <Ionicons name="flame-outline" size={30} color="#FFFFFF" />
+                  <View style={styles.completedWeekMetricCopy}>
+                    <Text style={styles.completedWeekMetricValue}>
+                      {formatTotalCalories(selectedCompletedWeek.calories)}
+                    </Text>
+                    <Text style={styles.completedWeekMetricLabel}>calorias</Text>
+                  </View>
                 </View>
               </View>
-              <View style={[styles.completedWeekMetric, styles.completedWeekMetricRed]}>
-                <Ionicons name="flame-outline" size={30} color="#FFFFFF" />
-                <View style={styles.completedWeekMetricCopy}>
-                  <Text style={styles.completedWeekMetricValue}>
-                    {formatTotalCalories(selectedCompletedWeek.calories)}
-                  </Text>
-                  <Text style={styles.completedWeekMetricLabel}>calorias</Text>
-                </View>
-              </View>
-            </View>
+            </ScrollView>
+          ) : (
+            <ScrollView
+              contentContainerStyle={styles.completedWeekList}
+              showsVerticalScrollIndicator={false}
+            >
+              {completedWeekSummaries.map((week) => (
+                <TouchableOpacity
+                  key={week.weekStart}
+                  style={styles.completedWeekListItem}
+                  onPress={() => setSelectedCompletedWeek(week)}
+                >
+                  <View style={styles.completedWeekListIcon}>
+                    <Ionicons name="checkmark-circle-outline" size={27} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.completedWeekListCopy}>
+                    <Text style={styles.completedWeekListDate}>
+                      {formatCompletedWeekRange(week.weekStart, week.weekEnd)}
+                    </Text>
+                    <Text style={styles.completedWeekListSessions}>
+                      {week.sessions} exercícios concluídos
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           )}
         </View>
       </Modal>
@@ -934,36 +985,27 @@ export default function StatisticsScreen() {
                     <Text style={styles.dashboardSectionTitle}>Metas semanais concluídas</Text>
                   </View>
                 </View>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.completedWeekRow}
+                <TouchableOpacity
+                  style={styles.completedWeekCard}
+                  onPress={() => setShowCompletedWeeks(true)}
                 >
-                  {completedWeekSummaries.map((week) => (
-                    <TouchableOpacity
-                      key={week.weekStart}
-                      style={styles.completedWeekCard}
-                      onPress={() => setSelectedCompletedWeek(week)}
-                    >
-                      <View style={styles.completedWeekCardTop}>
-                        <Text style={styles.completedWeekCardEyebrow}>SEMANA CONCLUÍDA</Text>
-                        <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
-                      </View>
-                      <View style={styles.completedWeekCardContent}>
-                        <View style={styles.completedWeekCardCopy}>
-                          <Text style={styles.completedWeekCardDate}>
-                            {formatCompletedWeekRange(week.weekStart, week.weekEnd)}
-                          </Text>
-                          <Text style={styles.completedWeekCardValue}>{week.sessions} exercícios</Text>
-                          <Text style={styles.completedWeekCardHint}>Toque para ver o resumo</Text>
-                        </View>
-                        <View style={styles.completedWeekCardIcon}>
-                          <Ionicons name="checkmark-circle-outline" size={42} color="#FFFFFF" />
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
+                  <View style={styles.completedWeekCardTop}>
+                    <Text style={styles.completedWeekCardEyebrow}>HISTÓRICO DE METAS</Text>
+                    <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.completedWeekCardContent}>
+                    <View style={styles.completedWeekCardCopy}>
+                      <Text style={styles.completedWeekCardDate}>Metas semanais concluídas</Text>
+                      <Text style={styles.completedWeekCardValue}>
+                        {completedWeekSummaries.length} {completedWeekSummaries.length === 1 ? 'semana' : 'semanas'}
+                      </Text>
+                      <Text style={styles.completedWeekCardHint}>Toque para ver o histórico</Text>
+                    </View>
+                    <View style={styles.completedWeekCardIcon}>
+                      <Ionicons name="checkmark-circle-outline" size={42} color="#FFFFFF" />
+                    </View>
+                  </View>
+                </TouchableOpacity>
               </View>
             )}
 
@@ -1402,12 +1444,8 @@ const styles = StyleSheet.create({
     marginLeft: -8,
     marginRight: -8,
   },
-  completedWeekRow: {
-    paddingHorizontal: 24,
-    gap: 12,
-  },
   completedWeekCard: {
-    width: SCREEN_WIDTH - 48,
+    marginHorizontal: 24,
     minHeight: 148,
     padding: 16,
     borderRadius: 18,
@@ -1469,8 +1507,22 @@ const styles = StyleSheet.create({
   completedWeekModalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: 32,
+  },
+  completedWeekModalHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
+  completedWeekBackButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1E293B',
   },
   completedWeekModalEyebrow: {
     color: '#38BDF8',
@@ -1495,6 +1547,44 @@ const styles = StyleSheet.create({
   },
   completedWeekMetrics: {
     gap: 12,
+    paddingBottom: 24,
+  },
+  completedWeekList: {
+    gap: 12,
+    paddingBottom: 24,
+  },
+  completedWeekListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: '#1E293B',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  completedWeekListIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+    backgroundColor: '#624E8C',
+  },
+  completedWeekListCopy: {
+    flex: 1,
+  },
+  completedWeekListDate: {
+    color: '#F8FAFC',
+    fontSize: 16,
+    fontWeight: '800',
+    textTransform: 'capitalize',
+  },
+  completedWeekListSessions: {
+    color: '#94A3B8',
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 5,
   },
   completedWeekMetric: {
     flexDirection: 'row',

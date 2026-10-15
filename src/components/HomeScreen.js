@@ -21,7 +21,7 @@ import { BikeContext } from '../context/BikeContext';
 import NotificationBell from './NotificationBell';
 import { NotificationService } from '../utils/NotificationService';
 import WeeklyGoalsSetupModal from './WeeklyGoalsSetupModal';
-import { listExerciseRecords } from '../utils/exerciseStorage';
+import { getExerciseStreak, listExerciseRecords } from '../utils/exerciseStorage';
 import {
   DEFAULT_WEEKLY_GOALS,
   COMPLETED_WEEKLY_GOALS_KEY,
@@ -121,6 +121,7 @@ export default function HomeScreen() {
     indoor: false,
     walk: false,
   });
+  const goalsCompletedByTypeRef = useRef({ indoor: false, walk: false });
   const titleReveal = useRef(new Animated.Value(0)).current;
   const messageReveal = useRef(new Animated.Value(0)).current;
   const cardRevealAnims = useRef(
@@ -139,13 +140,30 @@ export default function HomeScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
+      let isFocused = true;
+      let resetTimeout;
       const refreshHome = async () => {
         await checkWeekReset();
         await loadData();
         await loadProfile();
       };
 
+      const scheduleNextWeekReset = () => {
+        const nextMonday = getNextMondayOfWeek();
+        const delay = Math.max(nextMonday.getTime() - Date.now() + 100, 1);
+        resetTimeout = setTimeout(async () => {
+          await refreshHome();
+          if (isFocused) scheduleNextWeekReset();
+        }, delay);
+      };
+
       refreshHome();
+      scheduleNextWeekReset();
+
+      return () => {
+        isFocused = false;
+        clearTimeout(resetTimeout);
+      };
     }, [refreshTrigger])
   );
 
@@ -234,14 +252,18 @@ export default function HomeScreen() {
         await AsyncStorage.setItem('lastWeekReset', monday.toISOString());
         await AsyncStorage.setItem('goalsCompletedThisWeek:indoor', 'false');
         await AsyncStorage.setItem('goalsCompletedThisWeek:walk', 'false');
-        setGoalsCompletedByType({ indoor: false, walk: false });
+        const resetCompletionState = { indoor: false, walk: false };
+        goalsCompletedByTypeRef.current = resetCompletionState;
+        setGoalsCompletedByType(resetCompletionState);
       } else {
         const completedIndoor = await AsyncStorage.getItem('goalsCompletedThisWeek:indoor');
         const completedWalk = await AsyncStorage.getItem('goalsCompletedThisWeek:walk');
-        setGoalsCompletedByType({
+        const completionState = {
           indoor: completedIndoor === 'true',
           walk: completedWalk === 'true',
-        });
+        };
+        goalsCompletedByTypeRef.current = completionState;
+        setGoalsCompletedByType(completionState);
       }
     } catch (error) {
       console.error('Error checking week reset:', error);
@@ -290,10 +312,15 @@ export default function HomeScreen() {
     goalsByType,
     options = { allowCelebration: true }
   ) => {
-    const wasCompleted = goalsCompletedByType[type];
+    const wasCompleted = goalsCompletedByTypeRef.current[type];
     if (isCompletedNow === wasCompleted) return;
 
-    setGoalsCompletedByType((prev) => ({ ...prev, [type]: isCompletedNow }));
+    const nextCompletionState = {
+      ...goalsCompletedByTypeRef.current,
+      [type]: isCompletedNow,
+    };
+    goalsCompletedByTypeRef.current = nextCompletionState;
+    setGoalsCompletedByType(nextCompletionState);
     await AsyncStorage.setItem(`goalsCompletedThisWeek:${type}`, isCompletedNow ? 'true' : 'false');
 
     if (isCompletedNow && !wasCompleted && options.allowCelebration) {
@@ -403,28 +430,7 @@ export default function HomeScreen() {
     return { labels, data };
   };
 
-  const getStreak = () => {
-    if (records.length === 0) return 0;
-    
-    let streak = 0;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    for (let i = 0; i < records.length; i++) {
-      const recordDate = new Date(records[i].date);
-      recordDate.setHours(0, 0, 0, 0);
-      
-      const diffDays = Math.floor((today - recordDate) / (1000 * 60 * 60 * 24));
-      
-      if (diffDays === streak) {
-        streak++;
-      } else if (diffDays > streak) {
-        break;
-      }
-    }
-    
-    return streak;
-  };
+  const getStreak = () => getExerciseStreak(records);
 
   const getProgressPercentage = (current, goal) => {
     const currentValue = parseDecimalValue(current);
