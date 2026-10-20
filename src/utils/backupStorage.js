@@ -30,8 +30,8 @@ const parseJsonValue = (value, fallback) => {
 const isValidBackup = (backup) => {
   if (!backup || backup.format !== BACKUP_FORMAT || backup.version !== BACKUP_VERSION) return false;
   if (!backup.data || !Array.isArray(backup.data.exerciseRecords)) return false;
-  if (backup.data.userProfile !== null && typeof backup.data.userProfile !== 'object') return false;
-  if (backup.data.weeklyGoalsByType !== null && typeof backup.data.weeklyGoalsByType !== 'object') return false;
+  if (backup.data.userProfile !== undefined && backup.data.userProfile !== null && typeof backup.data.userProfile !== 'object') return false;
+  if (backup.data.weeklyGoalsByType !== undefined && backup.data.weeklyGoalsByType !== null && typeof backup.data.weeklyGoalsByType !== 'object') return false;
   return true;
 };
 
