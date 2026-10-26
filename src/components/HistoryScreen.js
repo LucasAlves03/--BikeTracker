@@ -66,6 +66,17 @@ export default function HistoryScreen() {
     }, [refreshTrigger])
   );
 
+  const requestedRecordId = Array.isArray(params.recordId) ? params.recordId[0] : params.recordId;
+
+  useEffect(() => {
+    if (!requestedRecordId) return;
+    const requestedRecord = records.find((record) => String(record.id) === requestedRecordId);
+    if (!requestedRecord) return;
+
+    setSelectedRecord(requestedRecord);
+    router.setParams({ recordId: undefined });
+  }, [requestedRecordId, records, router]);
+
   const loadRecords = async () => {
     try {
       const savedRecords = await listExerciseRecords();

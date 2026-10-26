@@ -4,7 +4,7 @@ import { Tabs } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 const TabIcon = ({ name, focused }) => (
-  <Ionicons name={name} size={24} style={styles.icon} color={focused ? '#3B82F6' : '#fff'} />
+  <Ionicons name={name} size={24} style={styles.icon} color={focused ? '#03669c' : '#fff'} />
 );
 
 export default function TabsLayout() {
@@ -13,8 +13,8 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: '#3B82F6',
-        tabBarInactiveTintColor: '#64748B',
+        tabBarActiveTintColor: '#03669c',
+        tabBarInactiveTintColor: '#fff',
         tabBarLabelStyle: styles.tabLabel,
       }}
     >
@@ -67,9 +67,9 @@ export default function TabsLayout() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: '#1E293B',
+    backgroundColor: '#212529',
     borderTopWidth: 1,
-    borderTopColor: '#334155',
+    borderTopColor: '#212529',
     height: 95,
     paddingBottom: 8,
     paddingTop: 10,

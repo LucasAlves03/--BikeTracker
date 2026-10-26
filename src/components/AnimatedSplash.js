@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
     width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#17191B',
+    backgroundColor: '#000',
     zIndex: 999,
   },
   animation: {

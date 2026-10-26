@@ -82,6 +82,35 @@ const parseDecimalValue = (value) => {
 const parseStepsValue = normalizeStepsGoal;
 
 const formatIntegerPtBr = (value) => new Intl.NumberFormat('pt-BR').format(Math.round(value || 0));
+const formatDecimalPtBr = (value) =>
+  new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value);
+const formatWorkoutMinutes = (value) => {
+  const minutes = Math.max(0, Math.round(parseDecimalValue(value)));
+  if (minutes >= 60) return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+  return `${minutes} min`;
+};
+const getLocalDateKey = (date) =>
+  `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}-${`${date.getDate()}`.padStart(2, '0')}`;
+const getLongestExerciseStreak = (exerciseRecords) => {
+  const dayNumbers = Array.from(
+    new Set(
+      exerciseRecords
+        .map((record) => new Date(record.date))
+        .filter((date) => Number.isFinite(date.getTime()))
+        .map((date) => Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000)
+    )
+  ).sort((a, b) => a - b);
+
+  let longestStreak = 0;
+  let currentStreak = 0;
+  let previousDay;
+  dayNumbers.forEach((day) => {
+    currentStreak = day === previousDay + 1 ? currentStreak + 1 : 1;
+    longestStreak = Math.max(longestStreak, currentStreak);
+    previousDay = day;
+  });
+  return longestStreak;
+};
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -91,6 +120,7 @@ export default function HomeScreen() {
   const [greeting, setGreeting] = useState('Painel');
   const [headerHeight, setHeaderHeight] = useState(0);
   const [showGoalsSetup, setShowGoalsSetup] = useState(false);
+  const [insightProgressTrackWidth, setInsightProgressTrackWidth] = useState(0);
   const [weeklyStatsByType, setWeeklyStatsByType] = useState({
     indoor: {
       totalDistance: 0,
@@ -117,13 +147,11 @@ export default function HomeScreen() {
   const [celebrationPercents, setCelebrationPercents] = useState(() =>
     CELEBRATION_CARD_CONFIG.reduce((acc, card) => ({ ...acc, [card.key]: 0 }), {})
   );
-  const [goalsCompletedByType, setGoalsCompletedByType] = useState({
-    indoor: false,
-    walk: false,
-  });
   const goalsCompletedByTypeRef = useRef({ indoor: false, walk: false });
   const titleReveal = useRef(new Animated.Value(0)).current;
   const messageReveal = useRef(new Animated.Value(0)).current;
+  const activityCardPress = useRef(new Animated.Value(0)).current;
+  const insightProgressAnimation = useRef(new Animated.Value(0)).current;
   const cardRevealAnims = useRef(
     CELEBRATION_CARD_CONFIG.reduce((acc, card) => {
       acc[card.key] = new Animated.Value(0);
@@ -137,6 +165,15 @@ export default function HomeScreen() {
     }, {})
   ).current;
   const { refreshTrigger, triggerRefresh } = useContext(BikeContext);
+  const activityCardBackground = activityCardPress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['#212529', '#2B3035'],
+  });
+  const insightProgressWidth = insightProgressAnimation.interpolate({
+    inputRange: [0, 100],
+    outputRange: [0, insightProgressTrackWidth],
+    extrapolate: 'clamp',
+  });
 
   useFocusEffect(
     React.useCallback(() => {
@@ -254,7 +291,6 @@ export default function HomeScreen() {
         await AsyncStorage.setItem('goalsCompletedThisWeek:walk', 'false');
         const resetCompletionState = { indoor: false, walk: false };
         goalsCompletedByTypeRef.current = resetCompletionState;
-        setGoalsCompletedByType(resetCompletionState);
       } else {
         const completedIndoor = await AsyncStorage.getItem('goalsCompletedThisWeek:indoor');
         const completedWalk = await AsyncStorage.getItem('goalsCompletedThisWeek:walk');
@@ -263,7 +299,6 @@ export default function HomeScreen() {
           walk: completedWalk === 'true',
         };
         goalsCompletedByTypeRef.current = completionState;
-        setGoalsCompletedByType(completionState);
       }
     } catch (error) {
       console.error('Error checking week reset:', error);
@@ -320,7 +355,6 @@ export default function HomeScreen() {
       [type]: isCompletedNow,
     };
     goalsCompletedByTypeRef.current = nextCompletionState;
-    setGoalsCompletedByType(nextCompletionState);
     await AsyncStorage.setItem(`goalsCompletedThisWeek:${type}`, isCompletedNow ? 'true' : 'false');
 
     if (isCompletedNow && !wasCompleted && options.allowCelebration) {
@@ -446,24 +480,94 @@ export default function HomeScreen() {
 
   const getTrackerLabel = (type) => (type === 'walk' ? 'Caminhada' : 'Bic. Ergométrica');
 
-  const combinedWeeklySessions = weeklyStatsByType.indoor.sessionsCount + weeklyStatsByType.walk.sessionsCount;
   const activeWeeklyStats = weeklyStatsByType[activeTracker];
   const activeWeeklyGoals = weeklyGoalsByType[activeTracker];
   const latestRecord = records[0];
+  const latestActivityIsWalk = latestRecord?.activityType === 'walk';
+  const latestActivityColor = latestActivityIsWalk ? '#38BDF8' : '#C6F432';
+  const latestActivityLabel = latestActivityIsWalk ? 'Caminhada' : 'Bicicleta ergométrica';
   const latestRecordLabel = latestRecord
-    ? `${getTrackerLabel(latestRecord.activityType)} · ${latestRecord.displayDate || formatDate(latestRecord.date)}`
+    ? `${latestActivityLabel} · ${new Date(latestRecord.date).toLocaleDateString('pt-BR', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    })}`
     : 'Nenhuma atividade registrada ainda';
-  const latestRecordSummary = latestRecord
-    ? `${latestRecord.time || 0} min · ${latestRecord.distance || 0} km${
-      latestRecord.activityType === 'walk' && latestRecord.runningTime
-        ? ` · Corrida ${latestRecord.runningTime} min`
-        : ''
-    }`
-    : 'Registre um exercício para acompanhar sua evolução.';
   const currentStreak = getStreak();
-  const insight = goalsCompletedByType[activeTracker]
-    ? `Meta de ${getTrackerLabel(activeTracker).toLowerCase()} concluída nesta semana.`
-    : `Você completou ${getProgressPercentage(activeWeeklyStats.totalTime, activeWeeklyGoals.time)}% da meta de tempo.`;
+  const longestStreak = getLongestExerciseStreak(records);
+  const streakCaption =
+    currentStreak > 0
+      ? `Continue assim, faltam ${Math.max(longestStreak - currentStreak, 0)} dias para bater seu recorde.`
+      : 'Dias consecutivos com exercício. Treine hoje para começar.';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const weekDays = Array.from({ length: 7 }, (_, index) => {
+    const date = getMondayOfWeek();
+    date.setDate(date.getDate() + index);
+    return {
+      date,
+      key: getLocalDateKey(date),
+      label: ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'][index],
+    };
+  });
+  const completedWeekDays = new Set(
+    records
+      .map((record) => new Date(record.date))
+      .filter((date) => Number.isFinite(date.getTime()))
+      .map(getLocalDateKey)
+  );
+  const insightWeekStart = getMondayOfWeek().getTime();
+  const insightWeekEnd = getNextMondayOfWeek().getTime();
+  const insightWeeklyRecords = records.filter((record) => {
+    const recordDate = new Date(record.date).getTime();
+    return (
+      record.activityType === activeTracker &&
+      Number.isFinite(recordDate) &&
+      recordDate >= insightWeekStart &&
+      recordDate < insightWeekEnd
+    );
+  });
+  const timeGoal = parseDecimalValue(activeWeeklyGoals.time);
+  const weeklyTime = insightWeeklyRecords.reduce(
+    (total, record) => total + parseDecimalValue(record.time),
+    0
+  );
+  const insightPercent = timeGoal > 0 ? Math.round((weeklyTime / timeGoal) * 100) : 0;
+  const insightProgressPercent = timeGoal > 0 ? Math.min((weeklyTime / timeGoal) * 100, 100) : 0;
+  const insightTitle =
+    insightPercent >= 100
+      ? 'Meta de tempo batida'
+      : insightPercent > 0
+        ? `Você já completou ${insightPercent}% da meta de tempo`
+        : `Você está em ${insightPercent}% da meta de tempo`;
+  const insightSupportingCopy =
+    insightPercent >= 100
+      ? 'Parabéns! Você superou sua meta de tempo nesta semana.'
+      : insightPercent > 0
+        ? `Faltam ${formatIntegerPtBr(Math.max(timeGoal - weeklyTime, 0))} min para alcançar sua meta esta semana.`
+        : `${insightWeeklyRecords.length} ${
+          insightWeeklyRecords.length === 1 ? 'sessão' : 'sessões'
+        } nesta semana. Que tal 30 min hoje?`;
+  const insightProgressLabel = `${formatIntegerPtBr(weeklyTime)}/${formatIntegerPtBr(timeGoal)} min`;
+  const insightProgressTarget =
+    insightProgressPercent > 0 ? Math.max(insightProgressPercent, 2) : 0;
+
+  useEffect(() => {
+    Animated.timing(insightProgressAnimation, {
+      toValue: insightProgressTarget,
+      duration: 600,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: false,
+    }).start();
+  }, [insightProgressTarget, insightProgressAnimation]);
+
+  const animateActivityCardPress = (toValue) => {
+    Animated.timing(activityCardPress, {
+      toValue,
+      duration: 120,
+      useNativeDriver: false,
+    }).start();
+  };
   const celebrationStats = weeklyStatsByType[celebrationType];
   const celebrationGoals = weeklyGoalsByType[celebrationType];
   const goalMetricCards = useMemo(
@@ -884,37 +988,142 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.homeSummaryList}>
-        <View style={[styles.homeSummaryCard, styles.homeSummaryCardBlue]}>
-          <View style={styles.homeSummaryIcon}>
-            <Ionicons name="pulse-outline" size={28} color="#FFFFFF" />
+        <TouchableOpacity
+          disabled={!latestRecord}
+          activeOpacity={1}
+          accessibilityRole="button"
+          accessibilityLabel={latestRecord ? `Abrir ${latestRecordLabel} no Histórico` : undefined}
+          onPress={() =>
+            latestRecord &&
+            router.push({
+              pathname: '/(tabs)/history',
+              params: { recordId: String(latestRecord.id) },
+            })
+          }
+          onPressIn={() => animateActivityCardPress(1)}
+          onPressOut={() => animateActivityCardPress(0)}
+        >
+          <Animated.View style={[styles.homeCard, { backgroundColor: activityCardBackground }]}>
+            <View style={styles.activityHeader}>
+              <View style={styles.homeCardIcon}>
+                <Ionicons
+                  name={latestActivityIsWalk ? 'walk-outline' : 'bicycle-outline'}
+                  size={22}
+                  color={latestActivityColor}
+                />
+              </View>
+              <View style={styles.activityHeaderCopy}>
+                <Text style={styles.homeCardCaption}>Última atividade</Text>
+                <Text style={styles.activityTitle} numberOfLines={1} ellipsizeMode="tail">
+                  {latestRecordLabel}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
+            </View>
+            <View style={styles.homeCardDivider} />
+            <View style={styles.activityStatsRow}>
+              <View style={styles.activityStat}>
+                <Text style={styles.activityStatValue} numberOfLines={1}>
+                  {formatWorkoutMinutes(latestRecord?.time)}
+                </Text>
+                <Text style={styles.activityStatLabel}>Tempo</Text>
+              </View>
+              <View style={styles.activityStatDivider} />
+              <View style={[styles.activityStat, styles.activityStatSeparated]}>
+                <View style={styles.activityStatValueRow}>
+                  <Text style={styles.activityStatValue} numberOfLines={1}>
+                    {formatDecimalPtBr(parseDecimalValue(latestRecord?.distance))}
+                  </Text>
+                  <Text style={styles.activityStatUnit}>km</Text>
+                </View>
+                <Text style={styles.activityStatLabel}>Distância</Text>
+              </View>
+              <View style={styles.activityStatDivider} />
+              <View style={[styles.activityStat, styles.activityStatSeparated]}>
+                <View style={styles.activityStatValueRow}>
+                  <Text style={styles.activityStatValue} numberOfLines={1}>
+                    {formatIntegerPtBr(parseDecimalValue(latestRecord?.runningTime))}
+                  </Text>
+                  <Text style={styles.activityStatUnit}>min</Text>
+                </View>
+                <Text style={styles.activityStatLabel}>Corrida</Text>
+              </View>
+            </View>
+          </Animated.View>
+        </TouchableOpacity>
+
+        <View style={styles.homeCard}>
+          <View style={styles.streakHeader}>
+            <Text style={styles.streakTitle}>Sequência semanal</Text>
+            <View style={styles.streakPill}>
+              <Ionicons name="flame" size={16} color="#C6F432" />
+              <Text style={styles.streakPillText}>
+                {currentStreak} {currentStreak === 1 ? 'dia' : 'dias'}
+              </Text>
+            </View>
           </View>
-          <View style={styles.homeSummaryCopy}>
-            <Text style={styles.homeSummaryLabel}>Atividade recente</Text>
-            <Text style={styles.homeSummaryValue} numberOfLines={1}>{latestRecordLabel}</Text>
-            <Text style={styles.homeSummarySubtitle} numberOfLines={2}>{latestRecordSummary}</Text>
+          <View style={styles.streakDaysRow}>
+            {weekDays.map(({ date, key, label }) => {
+              const hasWorkout = completedWeekDays.has(key);
+              const isToday = date.getTime() === today.getTime();
+              return (
+                <View key={key} style={styles.streakDay}>
+                  <View
+                    style={[
+                      styles.streakDayCircle,
+                      hasWorkout
+                        ? styles.streakDayCompleted
+                        : isToday
+                          ? styles.streakDayToday
+                          : styles.streakDayInactive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.streakDayLetter,
+                        hasWorkout
+                          ? styles.streakDayLetterCompleted
+                          : isToday
+                            ? styles.streakTodayText
+                            : styles.streakDayLetterInactive,
+                      ]}
+                    >
+                      {label}
+                    </Text>
+                  </View>
+                  <Text style={[styles.streakTodayCaption, isToday && !hasWorkout && styles.streakTodayText]}>
+                    {isToday && !hasWorkout ? 'Hoje' : ''}
+                  </Text>
+                </View>
+              );
+            })}
           </View>
-          <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
+          <Text style={styles.streakCaption}>{streakCaption}</Text>
         </View>
 
-        <View style={[styles.homeSummaryCard, styles.homeSummaryCardGreen]}>
-          <View style={styles.homeSummaryIcon}>
-            <Ionicons name="flame-outline" size={28} color="#FFFFFF" />
+        <View style={styles.insightCard}>
+          <View style={styles.insightHeader}>
+            <View style={styles.insightIcon}>
+              <Ionicons name="bulb-outline" size={22} color="#C6F432" />
+            </View>
+            <View style={styles.insightCopy}>
+              <Text style={styles.homeCardCaption}>Insight da semana</Text>
+              <Text style={styles.insightTitle}>{insightTitle}</Text>
+              <Text style={styles.insightSupportingCopy}>{insightSupportingCopy}</Text>
+            </View>
           </View>
-          <View style={styles.homeSummaryCopy}>
-            <Text style={styles.homeSummaryLabel}>Sequência semanal</Text>
-            <Text style={styles.homeSummaryValue}>{currentStreak} {currentStreak === 1 ? 'dia' : 'dias'}</Text>
-            <Text style={styles.homeSummarySubtitle}>Dias consecutivos com exercício</Text>
-          </View>
-        </View>
-
-        <View style={[styles.homeSummaryCard, styles.homeSummaryCardPurple]}>
-          <View style={styles.homeSummaryIcon}>
-            <Ionicons name="bulb-outline" size={28} color="#FFFFFF" />
-          </View>
-          <View style={styles.homeSummaryCopy}>
-            <Text style={styles.homeSummaryLabel}>Insight da semana</Text>
-            <Text style={styles.homeSummaryValue} numberOfLines={2}>{insight}</Text>
-            <Text style={styles.homeSummarySubtitle}>{combinedWeeklySessions} sessões nesta semana</Text>
+          <View style={styles.insightProgressRow}>
+            <View
+              style={styles.insightProgressTrack}
+              onLayout={(event) =>
+                setInsightProgressTrackWidth(event.nativeEvent.layout.width)
+              }
+            >
+              <Animated.View
+                style={[styles.insightProgressFill, { width: insightProgressWidth }]}
+              />
+            </View>
+            <Text style={styles.insightProgressLabel}>{insightProgressLabel}</Text>
           </View>
         </View>
       </View>
@@ -953,9 +1162,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: 24,
     marginBottom: 16,
-    backgroundColor: '#17191B',
+    backgroundColor: '#000',
     borderRadius: 15,
-    padding: 8
+    padding: 6
   },
   trackerTab: {
     flex: 1,
@@ -1059,9 +1268,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    borderWidth: 1,
-    borderColor: '#334155',
-    backgroundColor: '#202428',
+    backgroundColor: '#000',
     borderRadius: 999,
     paddingVertical: 6,
     paddingHorizontal: 10,
@@ -1149,55 +1356,210 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     gap: 12,
   },
-  homeSummaryCard: {
-    minHeight: 94,
-    borderRadius: 18,
+  homeCard: {
+    backgroundColor: '#212529',
+    borderRadius: 20,
     padding: 16,
+  },
+  activityHeader: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  homeSummaryCardBlue: {
-    backgroundColor: '#668DC4',
-  },
-  homeSummaryCardGreen: {
-    backgroundColor: '#62A77C',
-  },
-  homeSummaryCardPurple: {
-    backgroundColor: '#624E8C',
-  },
-  homeSummaryIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  homeCardIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    marginRight: 12,
   },
-  homeSummaryCopy: {
+  activityHeaderCopy: {
     flex: 1,
   },
-  homeSummaryLabel: {
-    color: '#FFFFFF',
+  homeCardCaption: {
+    color: '#94A3B8',
     fontSize: 12,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
+    lineHeight: 16,
   },
-  homeSummaryValue: {
+  activityTitle: {
     color: '#FFFFFF',
-    fontSize: 19,
-    lineHeight: 24,
-    fontWeight: '900',
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '500',
   },
-  homeSummarySubtitle: {
+  homeCardDivider: {
+    height: 1,
+    backgroundColor: '#363B40',
+    marginTop: 14,
+    marginBottom: 14,
+  },
+  activityStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  activityStat: {
+    flex: 1,
+    justifyContent: 'center',
+    minWidth: 0,
+  },
+  activityStatSeparated: {
+    paddingLeft: 14,
+  },
+  activityStatDivider: {
+    width: 1,
+    backgroundColor: '#363B40',
+  },
+  activityStatValueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  activityStatValue: {
     color: '#FFFFFF',
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  activityStatUnit: {
+    color: '#94A3B8',
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  activityStatLabel: {
+    color: '#94A3B8',
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 3,
+  },
+  streakHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  streakTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  streakPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  streakPillText: {
+    color: '#C6F432',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  streakDaysRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  streakDay: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  streakDayCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 7,
+  },
+  streakDayCompleted: {
+    backgroundColor: '#C6F432',
+  },
+  streakDayToday: {
+    backgroundColor: '#2B3035',
+  },
+  streakDayInactive: {
+    backgroundColor: '#2B3035',
+  },
+  streakDayLetter: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  streakDayLetterCompleted: {
+    color: '#17191B',
+  },
+  streakDayLetterInactive: {
+    color: '#94A3B8',
+  },
+  streakTodayCaption: {
+    color: 'transparent',
+    fontSize: 10,
+    lineHeight: 14,
+    marginTop: 3,
+  },
+  streakTodayText: {
+    color: '#C6F432',
+  },
+  streakCaption: {
+    color: '#94A3B8',
     fontSize: 12,
     lineHeight: 17,
-    fontWeight: '600',
+    marginTop: 10,
+  },
+  insightCard: {
+    backgroundColor: '#212529',
+    borderRadius: 20,
+    padding: 16,
+  },
+  insightHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  insightIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  insightCopy: {
+    flex: 1,
+  },
+  insightTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '500',
+    marginTop: 1,
+  },
+  insightSupportingCopy: {
+    color: '#94A3B8',
+    fontSize: 12,
+    lineHeight: 17,
     marginTop: 3,
-    opacity: 0.9,
+  },
+  insightProgressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 16,
+  },
+  insightProgressTrack: {
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+    backgroundColor: '#2B3035',
+  },
+  insightProgressFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: '#C6F432',
+  },
+  insightProgressLabel: {
+    color: '#94A3B8',
+    fontSize: 12,
+    lineHeight: 16,
   },
   glassStatCard: {
     backgroundColor: '#040404',
