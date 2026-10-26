@@ -196,7 +196,7 @@ export default function TestDataScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#17191B',
   },
   content: {
     paddingTop: 60,
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 18,
     borderRadius: 18,
-    backgroundColor: '#111C30',
+    backgroundColor: '#272B2F',
     borderWidth: 1,
     borderColor: '#1E293B',
     marginBottom: 26,
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 14,
-    backgroundColor: '#1E293B',
+    backgroundColor: '#272B2F',
     borderWidth: 1,
     borderColor: '#334155',
   },
@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   weekButton: {
-    backgroundColor: '#1D3557',
+    backgroundColor: '#272B2F',
     borderColor: '#2F5C91',
     marginBottom: 25,
   },
@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
     borderColor: '#6B3043',
   },
   restoreButton: {
-    backgroundColor: '#172A46',
+    backgroundColor: '#272B2F',
     borderColor: '#284D7D',
   },
   actionCopy: {

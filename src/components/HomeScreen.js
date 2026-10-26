@@ -702,7 +702,7 @@ export default function HomeScreen() {
         </View>
         <View style={styles.glassCard}>
           <LinearGradient
-            colors={['rgba(30, 41, 59, 0.6)', 'rgba(15, 23, 42, 0.6)']}
+            colors={['rgba(39, 43, 47, 0.6)', 'rgba(23, 25, 27, 0.6)']}
             style={styles.glassGradient}
           >
             <View style={styles.glassContent}>
@@ -927,7 +927,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#17191B',
   },
   scrollView: {
     flex: 1,
@@ -941,7 +941,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 10,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#17191B',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -953,7 +953,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: 24,
     marginBottom: 16,
-    backgroundColor: 'black',
+    backgroundColor: '#17191B',
     borderRadius: 15,
     padding: 8
   },
@@ -996,9 +996,9 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#334155',
+    backgroundColor: '#272B2F',
     borderWidth: 1,
-    borderColor: '#212529',
+    borderColor: '#17191B',
     overflow: 'hidden',
   },
   profileImage: {
@@ -1061,7 +1061,7 @@ const styles = StyleSheet.create({
     gap: 4,
     borderWidth: 1,
     borderColor: '#334155',
-    backgroundColor: '#020617',
+    backgroundColor: '#202428',
     borderRadius: 999,
     paddingVertical: 6,
     paddingHorizontal: 10,
@@ -1330,7 +1330,7 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     borderRadius: 0,
-    backgroundColor: '#050505',
+    backgroundColor: '#17191B',
     overflow: 'hidden',
   },
   goalHeaderImage: {
@@ -1348,7 +1348,7 @@ const styles = StyleSheet.create({
   },
  
   goalBody: {
-    backgroundColor: '#050505',
+    backgroundColor: '#17191B',
     paddingHorizontal: 14,
     paddingTop: 14,
     paddingBottom: 12,
@@ -1356,7 +1356,7 @@ const styles = StyleSheet.create({
   },
   goalBodyScroll: {
     flex: 1,
-    backgroundColor: '#050505',
+    backgroundColor: '#17191B',
   },
   goalSectionTitle: {
     marginBottom: 4,
@@ -1375,7 +1375,7 @@ const styles = StyleSheet.create({
     width: '47%',
     aspectRatio: 1,
     borderRadius: 15,
-    backgroundColor: '#0B0B0B',
+    backgroundColor: '#202428',
     paddingVertical: 10,
     paddingHorizontal: 10,
     justifyContent: 'space-between',
@@ -1410,7 +1410,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     height: 6,
     borderRadius: 999,
-    backgroundColor: '#1F2937',
+    backgroundColor: '#272B2F',
     overflow: 'hidden',
   },
   goalMetricFill: {
@@ -1435,7 +1435,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#4e4e4f80',
-    backgroundColor: '#111111',
+    backgroundColor: '#272B2F',
     alignItems: 'center',
     justifyContent: 'center',
   },

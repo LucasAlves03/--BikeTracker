@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
   },
   card: {
     maxHeight: '85%',
-    backgroundColor: '#0B1220',
+    backgroundColor: '#202428',
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
     paddingHorizontal: 16,
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
   },
   toggleRow: {
     flexDirection: 'row',
-    backgroundColor: '#020617',
+    backgroundColor: '#17191B',
     borderRadius: 12,
     padding: 4,
     marginBottom: 12,
@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
     maxHeight: 430,
   },
   metricCard: {
-    backgroundColor: '#0F172A',
+    backgroundColor: '#17191B',
     borderColor: '#1E293B',
     borderWidth: 1,
     borderRadius: 12,
@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#020617',
+    backgroundColor: '#17191B',
     borderWidth: 1,
     borderColor: '#1E293B',
     borderRadius: 10,
@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
   },
   progressTrack: {
     height: 8,
-    backgroundColor: '#1E293B',
+    backgroundColor: '#272B2F',
     borderRadius: 999,
     overflow: 'hidden',
   },

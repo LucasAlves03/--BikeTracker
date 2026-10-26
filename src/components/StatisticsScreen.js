@@ -160,6 +160,33 @@ export default function StatisticsScreen() {
     });
   }, [records, filterType, selectedTrendMetric.key]);
 
+  const runningTimePersonalBests = useMemo(() => {
+    const runningSessions = records
+      .filter((record) => getRecordType(record) === 'walk')
+      .map((record) => ({
+        id: record.id,
+        value: parseMetricNumber(record.runningTime),
+        date: new Date(record.date),
+      }))
+      .filter(({ value, date }) => value > 0 && !Number.isNaN(date.getTime()))
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    let bestTime = Infinity;
+    return runningSessions.reduce((personalBests, session) => {
+      if (session.value >= bestTime) return personalBests;
+
+      bestTime = session.value;
+      personalBests.push({
+        value: session.value,
+        label: session.date.toLocaleDateString('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+        }),
+      });
+      return personalBests;
+    }, []);
+  }, [records]);
+
   const weeklyTrendAverage = useMemo(() => {
     const total = weeklyTrendData.reduce((sum, point) => sum + point.value, 0);
     const exerciseCount = weeklyTrendData.reduce((sum, point) => sum + point.exerciseCount, 0);
@@ -167,6 +194,8 @@ export default function StatisticsScreen() {
   }, [weeklyTrendData]);
 
   const weeklyTrendDescription = `Média de ${selectedTrendMetric.label.toLowerCase()} por exercício`;
+  const formatRunningTime = (minutes) =>
+    `${Number(minutes).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} min`;
 
   const monthlySummary = useMemo(() => {
     const now = new Date();
@@ -627,7 +656,10 @@ export default function StatisticsScreen() {
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: headerHeight + 24 },
+          {
+            paddingTop: headerHeight + 24,
+            paddingBottom: 111,
+          },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -977,6 +1009,74 @@ export default function StatisticsScreen() {
               </View>
             </View>
 
+            <View style={styles.section}>
+              <View style={styles.sectionHeadingRow}>
+                <View>
+                  <Text style={styles.sectionEyebrow}>RECORDES PESSOAIS</Text>
+                  <Text style={styles.dashboardSectionTitle}>Tempo de corrida</Text>
+                </View>
+              </View>
+              <View style={styles.trendCard}>
+                {runningTimePersonalBests.length === 0 ? (
+                  <View style={styles.emptyChart}>
+                    <Text style={styles.emptyChartText}>
+                      Adicione um tempo de corrida em uma caminhada para acompanhar seus recordes.
+                    </Text>
+                  </View>
+                ) : (
+                  <>
+                    <Text style={styles.trendSummary}>
+                      Melhor tempo: {formatRunningTime(
+                        runningTimePersonalBests[runningTimePersonalBests.length - 1].value
+                      )}
+                    </Text>
+                    <GiftedLineChart
+                      data={runningTimePersonalBests}
+                      curved={false}
+                      thickness={3}
+                      adjustToWidth
+                      spacing={42}
+                      initialSpacing={8}
+                      endSpacing={8}
+                      maxValue={Math.max(...runningTimePersonalBests.map((point) => point.value), 1) * 1.15}
+                      color="#22D3EE"
+                      yAxisColor="transparent"
+                      xAxisColor="#E2E8F0"
+                      yAxisThickness={0}
+                      xAxisThickness={1}
+                      noOfSections={3}
+                      hideRules
+                      xAxisLabelTextStyle={styles.chartLabel}
+                      yAxisTextStyle={styles.chartLabel}
+                      pointerConfig={{
+                        pointerColor: '#22D3EE',
+                        pointerStripColor: '#CBD5E1',
+                        pointerStripWidth: 1,
+                        pointerStripUptoDataPoint: true,
+                        activatePointersInstantlyOnTouch: true,
+                        pointerLabelWidth: 120,
+                        pointerLabelHeight: 56,
+                        pointerLabelComponent: renderTooltip({
+                          unit: 'min',
+                          showSecondary: false,
+                          primaryLabel: 'Melhor tempo',
+                          primaryColor: '#22D3EE',
+                        }),
+                      }}
+                    />
+                    <Text style={styles.trendCaption}>
+                      {runningTimePersonalBests.length > 1
+                        ? `${formatRunningTime(
+                          runningTimePersonalBests[0].value
+                          - runningTimePersonalBests[runningTimePersonalBests.length - 1].value
+                        )} de melhora em ${runningTimePersonalBests.length} recordes pessoais`
+                        : 'Seus melhores tempos de corrida'}
+                    </Text>
+                  </>
+                )}
+              </View>
+            </View>
+
             {completedWeekSummaries.length > 0 && (
               <View style={styles.section}>
                 <View style={styles.sectionHeadingRow}>
@@ -1009,7 +1109,6 @@ export default function StatisticsScreen() {
               </View>
             )}
 
-            <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
@@ -1018,7 +1117,7 @@ export default function StatisticsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#17191B',
   },
   scrollView: {
     flex: 1,
@@ -1032,7 +1131,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 10,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#17191B',
     paddingTop: 60,
     paddingHorizontal: 24,
     paddingBottom: 5,
@@ -1059,7 +1158,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 12,
-    backgroundColor: '#1E293B',
+    backgroundColor: '#272B2F',
     borderWidth: 1,
     borderColor: '#334155',
     alignItems: 'center',
@@ -1151,7 +1250,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
     borderColor: 'gray',
-    backgroundColor: '#0F172A',
+    backgroundColor: '#17191B',
   },
   compareTabActive: {
     backgroundColor: '#fff',
@@ -1393,7 +1492,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
   },
   monthlyYearTabActive: {
-    backgroundColor: '#0F172A',
+    backgroundColor: '#17191B',
   },
   monthlyYearTabText: {
     color: '#475569',
@@ -1500,7 +1599,7 @@ const styles = StyleSheet.create({
   },
   completedWeekModal: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#17191B',
     paddingTop: 64,
     paddingHorizontal: 24,
   },
@@ -1522,7 +1621,7 @@ const styles = StyleSheet.create({
     borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#1E293B',
+    backgroundColor: '#272B2F',
   },
   completedWeekModalEyebrow: {
     color: '#38BDF8',
@@ -1543,7 +1642,7 @@ const styles = StyleSheet.create({
     borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#1E293B',
+    backgroundColor: '#272B2F',
   },
   completedWeekMetrics: {
     gap: 12,
@@ -1558,7 +1657,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderRadius: 16,
-    backgroundColor: '#1E293B',
+    backgroundColor: '#272B2F',
     borderWidth: 1,
     borderColor: '#334155',
   },
@@ -1633,7 +1732,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     padding: 4,
     borderRadius: 13,
-    backgroundColor: '#111C30',
+    backgroundColor: '#272B2F',
     borderWidth: 1,
     borderColor: '#1E293B',
     gap: 4,
@@ -1682,11 +1781,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingTop: 7,
     paddingBottom: 4,
+    textAlign: 'center',
   },
   recordsList: {
     marginHorizontal: 24,
     borderRadius: 18,
-    backgroundColor: '#111C30',
+    backgroundColor: '#272B2F',
     borderWidth: 1,
     borderColor: '#1E293B',
     overflow: 'hidden',
@@ -1733,7 +1833,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#334155',
-    backgroundColor: '#111827',
+    backgroundColor: '#202428',
     padding: 14,
     marginBottom: 12,
   },
@@ -1776,7 +1876,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   comparisonMetricCard: {
-    backgroundColor: '#0B1220',
+    backgroundColor: '#202428',
     borderRadius: 12,
     padding: 10,
     borderWidth: 1,
@@ -1813,7 +1913,7 @@ const styles = StyleSheet.create({
   comparisonBarTrack: {
     flex: 1,
     height: 8,
-    backgroundColor: '#1E293B',
+    backgroundColor: '#272B2F',
     borderRadius: 999,
     overflow: 'hidden',
   },
@@ -1925,7 +2025,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
   },
   monthTabActive: {
-    backgroundColor: '#0F172A',
+    backgroundColor: '#17191B',
   },
   monthTabText: {
     fontSize: 12,

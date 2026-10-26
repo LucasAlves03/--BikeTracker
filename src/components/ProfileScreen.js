@@ -818,7 +818,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#17191B',
   },
   header: {
     position: 'absolute',
@@ -826,7 +826,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 10,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#17191B',
     paddingTop: 60,
     paddingHorizontal: 24,
     paddingBottom: 20,
@@ -851,7 +851,7 @@ const styles = StyleSheet.create({
     width: 118,
     height: 118,
     borderRadius: 59,
-    backgroundColor: '#111827',
+    backgroundColor: '#202428',
     borderWidth: 1,
     borderColor: '#334155',
     alignItems: 'center',
@@ -955,7 +955,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   editBadge: {
-    backgroundColor: '#111827',
+    backgroundColor: '#202428',
     borderRadius: 8,
     paddingHorizontal: 15,
     paddingVertical: 6,
@@ -1173,7 +1173,7 @@ const styles = StyleSheet.create({
   progressTrack: {
     height: 16,
     borderRadius: 8,
-    backgroundColor: '#1E293B',
+    backgroundColor: '#272B2F',
     overflow: 'hidden',
   },
   progressFill: {
@@ -1213,7 +1213,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     padding: 16,
     borderRadius: 16,
-    backgroundColor: '#172235',
+    backgroundColor: '#272B2F',
     borderWidth: 1,
     borderColor: '#263852',
   },
@@ -1225,7 +1225,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: '#1E3A5F',
+    backgroundColor: '#272B2F',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -1297,7 +1297,7 @@ const styles = StyleSheet.create({
   },
   formCard: {
     maxHeight: '88%',
-    backgroundColor: '#0B1220',
+    backgroundColor: '#202428',
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
     borderWidth: 1,
@@ -1371,7 +1371,7 @@ const styles = StyleSheet.create({
   },
   input: {
     minHeight: 46,
-    backgroundColor: '#020617',
+    backgroundColor: '#17191B',
     borderWidth: 1,
     borderColor: '#1E293B',
     borderRadius: 10,
@@ -1394,7 +1394,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#334155',
-    backgroundColor: '#020617',
+    backgroundColor: '#17191B',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 8,

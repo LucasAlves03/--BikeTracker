@@ -12,18 +12,18 @@
     return (
       <View style={styles.root}>
         <BikeProvider>
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: '#0F172A' },
-              animation: 'fade',
-            }}
-          />
+          {splashVisible ? (
+            <AnimatedSplash onFinish={() => setSplashVisible(false)} />
+          ) : (
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: '#17191B' },
+                animation: 'fade',
+              }}
+            />
+          )}
         </BikeProvider>
-
-        {splashVisible && (
-          <AnimatedSplash onFinish={() =>    setSplashVisible(false)} />
-        )}
       </View>
     );
   }
@@ -31,6 +31,6 @@
   const styles = StyleSheet.create({
     root: {
       flex: 1,
-      backgroundColor: '#000',
+      backgroundColor: '#17191B',
     },
   });

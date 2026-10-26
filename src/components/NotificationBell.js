@@ -147,7 +147,7 @@ export default function NotificationBell() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <LinearGradient
-              colors={['#1E293B', '#0F172A']}
+              colors={['#272B2F', '#17191B']}
               style={styles.modalGradient}
             >
               <View style={styles.modalHeader}>
@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: '#334155',
+    backgroundColor: '#272B2F',
   },
   actionButtonText: {
     color: '#FFFFFF',
@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
   },
   notificationCard: {
-    backgroundColor: '#1E293B',
+    backgroundColor: '#272B2F',
     borderRadius: 16,
     marginBottom: 12,
     borderWidth: 1,
@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
   },
   unreadCard: {
     borderColor: '#3B82F6',
-    backgroundColor: '#1E3A5C',
+    backgroundColor: '#272B2F',
   },
   notificationContent: {
     flexDirection: 'row',

@@ -276,7 +276,7 @@ export default function AddExerciseScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#17191B',
   },
   scrollView: {
     flex: 1,
@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 10,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#17191B',
     paddingTop: 60,
     paddingHorizontal: 24,
     paddingBottom: 20,
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: 24,
     marginBottom: 16,
-    backgroundColor: 'black',
+    backgroundColor: '#17191B',
     borderRadius: 15,
     padding: 8,
     
@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#1E293B',
+    backgroundColor: '#272B2F',
     borderRadius: 5,
     padding: 16,
     fontSize: 16,
